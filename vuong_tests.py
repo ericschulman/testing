@@ -1,8 +1,11 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import statsmodels.api as sm
 import scipy.stats as stats
+import scipy.linalg as linalg
+import matplotlib.pyplot as plt
 
+from scipy.optimize import minimize
+from scipy.stats import norm
 
 
 def regular_test(yn,xn,nobs,compute_llr,hist=False):
@@ -41,30 +44,30 @@ def bootstrap_test(yn,xn,nobs,compute_llr,hist=False):
 
 
 def monte_carlo(total,gen_data,compute_llr):
-	reg = np.array([0, 0 ,0])
-	boot = np.array([0, 0 ,0])
-	omega = 0
-	llr = 0
-	for i in range(total):
-	    np.random.seed()
-	    yn,xn,nobs = gen_data()
-	    llrn,omegan = compute_llr(yn,xn)
-	    
-	    #update the llr
-	    llr = llr +llrn
-	    omega = omega +omegan
-	    reg_index = regular_test(yn,xn,nobs,compute_llr)
-	    
-	    #update test results
-	    boot_index = bootstrap_test(yn,xn,nobs,compute_llr)
-	    reg[reg_index] = reg[reg_index] + 1
-	    boot[boot_index] = boot[boot_index] + 1
+    reg = np.array([0, 0 ,0])
+    boot = np.array([0, 0 ,0])
+    omega = 0
+    llr = 0
+    for i in range(total):
+        np.random.seed()
+        yn,xn,nobs = gen_data()
+        llrn,omegan = compute_llr(yn,xn)
+        
+        #update the llr
+        llr = llr +llrn
+        omega = omega +omegan
+        reg_index = regular_test(yn,xn,nobs,compute_llr)
+        
+        #update test results
+        boot_index = bootstrap_test(yn,xn,nobs,compute_llr)
+        reg[reg_index] = reg[reg_index] + 1
+        boot[boot_index] = boot[boot_index] + 1
 
-	return reg/total,boot/total,llr/total,omega/total
+    return reg/total,boot/total,llr/total,omega/total
 
 
 
-def ndVuong(yn,xn,setup_shi,alpha,nsims):
+def ndVuong(yn,xn,setup_shi,alpha,nsims,verbose =False):
     
     ll1,grad1,hess1,ll2,k1, grad2,hess2,k2 = setup_shi(yn,xn)
     
@@ -130,12 +133,18 @@ def ndVuong(yn,xn,setup_shi,alpha,nsims):
     #    cv = max(quant(sigstar(cstar),cstar),z_normal)
     
     #Computing the ND test statistic:
-    nLR_hat = llr = ll1.sum() - ll2.sum()
+    nLR_hat = ll1.sum() - ll2.sum()
     nomega2_hat = (ll1- ll2).var() ### this line may not be correct #####
                                         
     #Non-degenerate Vuong Tests    
     Tnd = (nLR_hat+V.sum()/2)/np.sqrt(n*nomega2_hat + cstar*(V*V).sum())
-    
+    if verbose:
+        print("Test:%s,%s,%s"% (Tnd[0],cv,-1*cv))
+        print("LR:%s"%nLR_hat)
+        print("v:%s"%V.sum())
+        print("nomega2:%s"%(n*nomega2_hat))
+        print("v2:%s"%(cstar*(V*V).sum()))
+        print("------")
     return 1*(Tnd[0] >= cv) + 2*(Tnd[0] <= -cv)
 
 
