@@ -11,7 +11,6 @@ from scipy.stats import norm
 def regular_test(yn,xn,nobs,compute_llr,hist=False):
     llr, omega = compute_llr(yn,xn)
     test_stat = llr/(omega*np.sqrt(nobs))
-    #plot
     if hist:
         x = np.linspace(-2.5, 2.5, 100)
         plt.plot(x, stats.norm.pdf(x, 0, 1),label="Normal")
@@ -40,6 +39,7 @@ def bootstrap_test(yn,xn,nobs,compute_llr,hist=False):
     
     cv_lower = 2*test_stat - np.percentile(test_stats, 97.5, axis=0)
     cv_upper = 2*test_stat -  np.percentile(test_stats, 2.5, axis=0)
+    print('boot', test_stat,cv_lower,cv_upper,'\n')
     return  2*(0 >= cv_upper) + 1*(0 <= cv_lower)
 
 
