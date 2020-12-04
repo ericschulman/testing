@@ -39,7 +39,7 @@ def bootstrap_test(yn,xn,nobs,compute_llr,hist=False):
     
     cv_lower = 2*test_stat - np.percentile(test_stats, 97.5, axis=0)
     cv_upper = 2*test_stat -  np.percentile(test_stats, 2.5, axis=0)
-    print('boot', test_stat,cv_lower,cv_upper,'\n')
+    #print('boot', test_stat,cv_lower,cv_upper,'\n')
     return  2*(0 >= cv_upper) + 1*(0 <= cv_lower)
 
 
