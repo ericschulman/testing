@@ -134,16 +134,17 @@ def ndVuong(yn,xn,setup_shi,alpha,nsims,verbose =False):
     
     #Computing the ND test statistic:
     nLR_hat = ll1.sum() - ll2.sum()
-    nomega2_hat = (ll1- ll2).var() ### this line may not be correct #####
-                                        
+    nomega2_hat = (ll1- ll2).var() ### this line may not be correct #####                    
     #Non-degenerate Vuong Tests    
     Tnd = (nLR_hat+V.sum()/2)/np.sqrt(n*nomega2_hat + cstar*(V*V).sum())
+    verbose = False
     if verbose:
         print("Test:%s,%s,%s"% (Tnd[0],cv,-1*cv))
         print("LR:%s"%nLR_hat)
         print("v:%s"%V.sum())
         print("nomega2:%s"%(n*nomega2_hat))
         print("v2:%s"%(cstar*(V*V).sum()))
+        print("clasical:%s"%(nLR_hat/nomega2_hat))
         print("------")
     return 1*(Tnd[0] >= cv) + 2*(Tnd[0] <= -cv)
 
