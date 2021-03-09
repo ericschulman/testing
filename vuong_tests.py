@@ -20,7 +20,7 @@ def regular_test(yn,xn,nobs,compute_llr,hist=False):
 
 def bootstrap_distr(yn,xn,nobs,compute_llr):
     test_stats = []
-    trials = 200
+    trials = 100
     for i in range(trials):
         subn = 1000
         np.random.seed()
@@ -29,8 +29,6 @@ def bootstrap_distr(yn,xn,nobs,compute_llr):
         llr, omega = compute_llr(ys,xs)
         test_stat = llr/(omega*np.sqrt(subn))
         test_stats.append(test_stat)
-        
-
     return test_stats
 
 
@@ -38,7 +36,6 @@ def bootstrap_test(yn,xn,nobs,compute_llr,hist=False,test_stats=None):
     
     if test_stats is None:
         test_stats = bootstrap_distr(yn,xn,nobs,compute_llr)
-
     llr, omega = compute_llr(yn,xn)
     test_stat = llr/(omega*np.sqrt(nobs))
     
@@ -55,7 +52,6 @@ def bootstrap_test(yn,xn,nobs,compute_llr,hist=False,test_stats=None):
 def bootstrap_test2(yn,xn,nobs,compute_llr,hist=False,test_stats=None):
     if test_stats is None:
         test_stats = bootstrap_distr(yn,xn,nobs,compute_llr)
-
     #plot
     if hist:
         plt.hist( 2*test_stat - test_stats, density=True,bins=10, label="Bootstrap")
@@ -91,6 +87,7 @@ def monte_carlo(total,gen_data,compute_llr,use_boot2=False):
         reg[reg_index] = reg[reg_index] + 1
         boot1[boot_index1] = boot1[boot_index1] + 1
         boot2[boot_index2] = boot2[boot_index2] + 1
+
     if use_boot2:
         return reg/total,boot1/total,boot2/total,llr/total,omega/total
     else:
