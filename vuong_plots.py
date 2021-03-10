@@ -33,6 +33,19 @@ def compute_eigen(yn,xn,setup_shi):
     V,W = np.linalg.eig(W_hat)
     return V
 
+def plot_true(gen_data,setup_shi):
+    true_stats = []
+    trials = 200
+    for i in range(trials):
+        np.random.seed()
+        ys,xs,nobs = gen_data()
+        ll1,grad1,hess1,ll2,k1, grad2,hess2,k2 = setup_shi(ys,xs)
+        llr = (ll1 - ll2).sum()
+        true_stats.append(2*llr)
+
+    plt.hist( true_stats, density=True,bins=15, label="True",alpha=.75)
+    return true_stats
+
 def plot_analytic(yn,xn,nobs,setup_shi):
     n_sims = 5000
     model_eigs = compute_eigen(yn,xn,setup_shi)
