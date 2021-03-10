@@ -50,29 +50,9 @@ def plot_bootstrap(yn,xn,nobs,setup_shi):
         np.random.seed()
         sample  = np.random.choice(np.arange(0,nobs),subn,replace=True)
         ys,xs = yn[sample],xn[sample]
-        ll1,grad1,hess1,ll2,k1, grad2,hess2,k2 = setup_shi(ys,xs)
-        llr = (ll1 - ll2).sum()
-        #print("*boot*, ll1:%.3f ll2:%.3f  llr:%.3f  "%(ll1.sum(),
-        #    ll2.sum(),2*llr))
-        test_stats.append(2*llr)
-    
-    plt.hist( test_stats, density=True,bins=10, label="Bootstrap",alpha=.75)
-    return test_stats
-
-
-def plot_true(gen_data,setup_shi):
-    test_stats = []
-    trials = 100
-    for i in range(trials):
-        yn,xn,nobs = gen_data()
         ll1,grad1,hess1,ll2,k1, grad2,hess2,k2 = setup_shi(yn,xn)
         llr = (ll1 - ll2).sum()
-        #print("true, ll1:%.3f ll2:%.3f  llr:%.3f  "%(ll1.sum(),
-        #    ll2.sum(),2*llr))
         test_stats.append(2*llr)
-    plt.hist( test_stats, density=True,bins=10, label="True",alpha=.75)
-    return test_stats
-
     
     plt.hist( test_stats, density=True,bins=10, label="Bootstrap",alpha=.75)
     return test_stats
