@@ -39,20 +39,20 @@ def plot_analytic(yn,xn,nobs,setup_shi):
     eigs_tile = np.tile(model_eigs,n_sims).reshape(n_sims,len(model_eigs))
     normal_draws = stats.norm.rvs(size=(n_sims,len(model_eigs)))
     weighted_chi = ((normal_draws**2)*eigs_tile).sum(axis=1)
-    plt.hist(weighted_chi,density=True,bins=25,alpha=.75,label="Analytic")
+    plt.hist(weighted_chi,density=True,bins=20,alpha=.75,label="Analytic")
     return weighted_chi
 
 def plot_bootstrap(yn,xn,nobs,setup_shi):
     test_stats = []
-    trials = 100
+    trials = 200
     for i in range(trials):
         subn = nobs
         np.random.seed()
         sample  = np.random.choice(np.arange(0,nobs),subn,replace=True)
         ys,xs = yn[sample],xn[sample]
-        ll1,grad1,hess1,ll2,k1, grad2,hess2,k2 = setup_shi(yn,xn)
+        ll1,grad1,hess1,ll2,k1, grad2,hess2,k2 = setup_shi(ys,xs)
         llr = (ll1 - ll2).sum()
         test_stats.append(2*llr)
     
-    plt.hist( test_stats, density=True,bins=10, label="Bootstrap",alpha=.75)
+    plt.hist( test_stats, density=True,bins=15, label="Bootstrap",alpha=.75)
     return test_stats
