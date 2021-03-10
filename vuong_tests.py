@@ -18,7 +18,7 @@ def regular_test(yn,xn,nobs,compute_llr,hist=False):
     return 1*(test_stat >= 1.96) + 2*( test_stat <= -1.96)
 
 
-def bootstrap_test(yn,xn,nobs,compute_llr,hist=False):
+def bootstrap_distr(yn,xn,nobs,compute_llr):
     test_stats = []
     trials = 100
     for i in range(trials):
@@ -29,7 +29,13 @@ def bootstrap_test(yn,xn,nobs,compute_llr,hist=False):
         llr, omega = compute_llr(ys,xs)
         test_stat = llr/(omega*np.sqrt(subn))
         test_stats.append(test_stat)
-        
+    return test_stats
+
+
+def bootstrap_test(yn,xn,nobs,compute_llr,hist=False,test_stats=None):
+    
+    if test_stats is None:
+        test_stats = bootstrap_distr(yn,xn,nobs,compute_llr)
     llr, omega = compute_llr(yn,xn)
     test_stat = llr/(omega*np.sqrt(nobs))
     
@@ -43,9 +49,23 @@ def bootstrap_test(yn,xn,nobs,compute_llr,hist=False):
     return  2*(0 >= cv_upper) + 1*(0 <= cv_lower)
 
 
-def monte_carlo(total,gen_data,compute_llr):
+def bootstrap_test2(yn,xn,nobs,compute_llr,hist=False,test_stats=None):
+    if test_stats is None:
+        test_stats = bootstrap_distr(yn,xn,nobs,compute_llr)
+    #plot
+    if hist:
+        plt.hist( 2*test_stat - test_stats, density=True,bins=10, label="Bootstrap")
+    
+    cv_upper = np.percentile(test_stats, 97.5, axis=0)
+    cv_lower = np.percentile(test_stats, 2.5, axis=0)
+    #print('boot', test_stat,cv_lower,cv_upper,'\n')
+    return  2*(0 >= cv_upper) + 1*(0 <= cv_lower)
+
+
+def monte_carlo(total,gen_data,compute_llr,use_boot2=False):
     reg = np.array([0, 0 ,0])
-    boot = np.array([0, 0 ,0])
+    boot1 = np.array([0, 0 ,0])
+    boot2 = np.array([0, 0 ,0])
     omega = 0
     llr = 0
     for i in range(total):
@@ -59,11 +79,19 @@ def monte_carlo(total,gen_data,compute_llr):
         reg_index = regular_test(yn,xn,nobs,compute_llr)
         
         #update test results
-        boot_index = bootstrap_test(yn,xn,nobs,compute_llr)
+        boot_distr_result = bootstrap_distr(yn,xn,nobs,compute_llr)
+        boot_index1 = bootstrap_test(yn,xn,nobs,compute_llr,
+            test_stats=boot_distr_result)
+        boot_index2 = bootstrap_test2(yn,xn,nobs,compute_llr,
+            test_stats=boot_distr_result)
         reg[reg_index] = reg[reg_index] + 1
-        boot[boot_index] = boot[boot_index] + 1
+        boot1[boot_index1] = boot1[boot_index1] + 1
+        boot2[boot_index2] = boot2[boot_index2] + 1
 
-    return reg/total,boot/total,llr/total,omega/total
+    if use_boot2:
+        return reg/total,boot1/total,boot2/total,llr/total,omega/total
+    else:
+        return reg/total,boot1/total,llr/total,omega/total
 
 
 
