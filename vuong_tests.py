@@ -68,6 +68,7 @@ def monte_carlo(total,gen_data,compute_llr,use_boot2=False):
     boot2 = np.array([0, 0 ,0])
     omega = 0
     llr = 0
+    var = 0
     for i in range(total):
         np.random.seed()
         yn,xn,nobs = gen_data()
@@ -75,6 +76,7 @@ def monte_carlo(total,gen_data,compute_llr,use_boot2=False):
         
         #update the llr
         llr = llr +llrn
+        var = llrn**2 + var
         omega = omega +omegan
         reg_index = regular_test(yn,xn,nobs,compute_llr)
         
@@ -89,9 +91,9 @@ def monte_carlo(total,gen_data,compute_llr,use_boot2=False):
         boot2[boot_index2] = boot2[boot_index2] + 1
 
     if use_boot2:
-        return reg/total,boot1/total,boot2/total,llr/total,omega/total
+        return reg/total,boot1/total,boot2/total,llr/total,np.sqrt(var/total-(llr/total)**2),omega/total
     else:
-        return reg/total,boot1/total,llr/total,omega/total
+        return reg/total,boot1/total,llr/total,np.sqrt(var/total-(llr/total)**2)
 
 
 

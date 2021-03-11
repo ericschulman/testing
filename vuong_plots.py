@@ -31,7 +31,11 @@ def compute_eigen(yn,xn,setup_shi):
     W_hat = np.matmul(sqrt_B_hat,linalg.inv(A_hat))
     W_hat = np.matmul(W_hat,sqrt_B_hat)
     V,W = np.linalg.eig(W_hat)
+
+    #simulate z_p as well...####
+
     return V
+
 
 def plot_true(gen_data,setup_shi):
     true_stats = []
@@ -55,6 +59,7 @@ def plot_analytic(yn,xn,nobs,setup_shi):
     plt.hist(weighted_chi,density=True,bins=20,alpha=.75,label="Analytic")
     return weighted_chi
 
+
 def plot_bootstrap(yn,xn,nobs,setup_shi):
     test_stats = []
     trials = 200
@@ -66,6 +71,50 @@ def plot_bootstrap(yn,xn,nobs,setup_shi):
         ll1,grad1,hess1,ll2,k1, grad2,hess2,k2 = setup_shi(ys,xs)
         llr = (ll1 - ll2).sum()
         test_stats.append(2*llr)
+    
+    plt.hist( test_stats, density=True,bins=15, label="Bootstrap",alpha=.75)
+    return test_stats
+
+####################################  actual test stat ################
+
+def plot_true2(gen_data,setup_shi):
+    true_stats = []
+    trials = 200
+    for i in range(trials):
+        np.random.seed()
+        ys,xs,nobs = gen_data()
+        nobs = ys.shape[0]
+        ll1,grad1,hess1,ll2,k1, grad2,hess2,k2 = setup_shi(ys,xs)
+        llr = (ll1 - ll2).sum()
+        omega2 = (ll1 - ll2).var()
+        true_stats.append(llr/(np.sqrt(omega2*nobs)))
+
+    plt.hist( true_stats, density=True,bins=15, label="True",alpha=.75)
+    return true_stats
+
+def plot_analytic2(yn,xn,nobs,setup_shi):
+    n_sims = 5000
+    model_eigs = compute_eigen(yn,xn,setup_shi)
+    eigs_tile = np.tile(model_eigs,n_sims).reshape(n_sims,len(model_eigs))
+    normal_draws = stats.norm.rvs(size=(n_sims,len(model_eigs)))
+    weighted_chi_num = ((normal_draws**2)*eigs_tile).sum(axis=1)
+    weighted_chi_denom = np.sqrt(((normal_draws**2)*(eigs_tile**2)).sum(axis=1))
+    plt.hist(weighted_chi_num/weighted_chi_denom,density=True,bins=20,alpha=.75,label="Analytic")
+    return weighted_chi_num/weighted_chi_denom
+
+
+def plot_bootstrap2(yn,xn,nobs,setup_shi):
+    test_stats = []
+    trials = 200
+    for i in range(trials):
+        subn = nobs
+        np.random.seed()
+        sample  = np.random.choice(np.arange(0,nobs),subn,replace=True)
+        ys,xs = yn[sample],xn[sample]
+        ll1,grad1,hess1,ll2,k1, grad2,hess2,k2 = setup_shi(ys,xs)
+        llr = (ll1 - ll2).sum()
+        omega2 = (ll1 - ll2).var()
+        test_stats.append(llr/(np.sqrt(omega2*nobs)))
     
     plt.hist( test_stats, density=True,bins=15, label="Bootstrap",alpha=.75)
     return test_stats
