@@ -18,9 +18,8 @@ def regular_test(yn,xn,nobs,compute_llr,hist=False):
     return 1*(test_stat >= 1.96) + 2*( test_stat <= -1.96)
 
 
-def bootstrap_distr(yn,xn,nobs,compute_llr):
+def bootstrap_distr(yn,xn,nobs,compute_llr,trials=100):
     test_stats = []
-    trials = 100
     for i in range(trials):
         subn = 1000
         np.random.seed()
