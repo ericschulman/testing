@@ -111,7 +111,7 @@ def monte_carlo(total,gen_data,setup_shi,trials=100,use_boot2=False):
         #update test results
         boot_distr_result,boot_distr_result_nml = bootstrap_distr(yn,xn,nobs,setup_shi,trials=trials)
         boot_index1 = bootstrap_test(yn,xn,nobs,setup_shi,
-            test_stats=boot_distr_result,use_boot2=use_boot2)
+            test_stats=boot_distr_result, use_boot2=use_boot2)
         boot_index2 = bootstrap_test(yn,xn,nobs,setup_shi,
             test_stats=boot_distr_result_nml,use_boot2=use_boot2)
         reg[reg_index] = reg[reg_index] + 1
