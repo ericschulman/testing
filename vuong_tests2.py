@@ -69,7 +69,6 @@ def bootstrap_distr(yn,xn,nobs,setup_shi,trials=100):
         
         ###################
 
-        #llr = (ll1 - ll2).sum() +V_nmlzd.sum()/2
         llr = (ll1 - ll2).sum() 
         omega2 = (ll1 - ll2).var()
         test_stats.append((llr +V.sum()/2)/(np.sqrt(omega2*nobs)))
