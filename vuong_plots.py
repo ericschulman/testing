@@ -177,7 +177,7 @@ def plot_analytic2(yn,xn,nobs,setup_shi):
     overlap,normal =  compute_analytic(yn,xn,setup_shi)
     plt.hist(overlap,density=True,bins=15,alpha=.75,label="Overlapping")
     plt.hist(normal,density=True,bins=15,alpha=.75,label="Normal")
-    return 
+    return overlap,normal
 
 
 def plot_bootstrap2(yn,xn,nobs,setup_shi):
@@ -212,10 +212,7 @@ def plot_bootstrap2(yn,xn,nobs,setup_shi):
         llr = (ll1 - ll2).sum() +V.sum()/2
         omega2 = (ll1 - ll2).var()
         test_stats.append(llr/(np.sqrt(omega2*nobs)))
-    
-        ll1,grad1,hess1,ll2,k1, grad2,hess2,k2 = setup_shi(ys,xs)
         
-
 
     plt.hist( test_stats, density=True,bins=15, label="Bootstrap",alpha=.75)
     return test_stats
