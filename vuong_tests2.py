@@ -43,7 +43,7 @@ def regular_test(yn,xn,nobs,setup_shi):
 
 def bootstrap_distr(yn,xn,nobs,setup_shi,trials=100):
     test_stats = []
-    test_stats_nrml = []
+    test_stats_nml = []
 
     #messing around with recentering ###################
     
@@ -71,16 +71,26 @@ def bootstrap_distr(yn,xn,nobs,setup_shi,trials=100):
 
         llr = (ll1 - ll2).sum() 
         omega2 = (ll1 - ll2).var()
-        test_stats.append((llr +V.sum()/2)/(np.sqrt(omega2*nobs)))
-        test_stats_nrml.append((llr +V_nml.sum()/2)/(np.sqrt(omega2*nobs)))
-    return  test_stats, test_stats_nrml
+        boot_teststat =  (llr +V.sum()/(2*nobs) )/(np.sqrt(omega2*nobs))
+        boot_teststat_nml = (llr +V.sum()/(2*nobs) )/(np.sqrt(omega2*nobs))
+        test_stats.append( boot_teststat )
+        test_stats.append( boot_teststat_nml ) #these are the same now...
+        #test_stats_nml.append((llr +V_nml.sum()/2)/(np.sqrt(omega2*nobs)))
+    return  test_stats, test_stats_nml
 
 
 def bootstrap_test(yn,xn,nobs,setup_shi, test_stats=[0],use_boot2=False):
+    
     cv_upper = np.percentile(test_stats, 97.5, axis=0)
     cv_lower = np.percentile(test_stats, 2.5, axis=0)
 
     if use_boot2:
+        #compute test stat if needed
+        ll1,grad1,hess1,ll2,k1, grad2,hess2,k2 = setup_shi(yn,xn)
+        llr = (ll1 - ll2).sum()
+        omega = np.sqrt( (ll1 -ll2).var())
+        test_stat = llr/(omega*np.sqrt(nobs))
+        
         cv_lower = 2*test_stat - np.percentile(test_stats, 97.5, axis=0)
         cv_upper = 2*test_stat -  np.percentile(test_stats, 2.5, axis=0)
 
@@ -110,9 +120,9 @@ def monte_carlo(total,gen_data,setup_shi,trials=100,use_boot2=False):
         #update test results
         boot_distr_result,boot_distr_result_nml = bootstrap_distr(yn,xn,nobs,setup_shi,trials=trials)
         boot_index1 = bootstrap_test(yn,xn,nobs,setup_shi,
-            test_stats=boot_distr_result, use_boot2=use_boot2)
+            test_stats=boot_distr_result, use_boot2=False)
         boot_index2 = bootstrap_test(yn,xn,nobs,setup_shi,
-            test_stats=boot_distr_result_nml,use_boot2=use_boot2)
+            test_stats=boot_distr_result,use_boot2=True)
         reg[reg_index] = reg[reg_index] + 1
         boot1[boot_index1] = boot1[boot_index1] + 1
         boot2[boot_index2] = boot2[boot_index2] + 1

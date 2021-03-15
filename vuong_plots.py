@@ -158,9 +158,8 @@ def plot_bootstrap(yn,xn,nobs,setup_shi):
 
 ############################  actual test stat ########################
 
-def plot_true2(gen_data,setup_shi):
+def plot_true2(gen_data,setup_shi,trials=500):
     true_stats = []
-    trials = 500
     for i in range(trials):
         np.random.seed()
         ys,xs,nobs = gen_data()
@@ -180,10 +179,9 @@ def plot_analytic2(yn,xn,nobs,setup_shi):
     return overlap,normal
 
 
-def plot_bootstrap2(yn,xn,nobs,setup_shi):
+def plot_bootstrap2(yn,xn,nobs,setup_shi,trials=500):
     test_stats = []
-    trials = 500
-
+    
     #messing around with recentering ###################
     
     #ll1,grad1,hess1,ll2,k1, grad2,hess2,k2 = setup_shi(yn,xn)
@@ -209,7 +207,7 @@ def plot_bootstrap2(yn,xn,nobs,setup_shi):
         ###################
 
         #llr = (ll1 - ll2).sum() +V_nmlzd.sum()/2
-        llr = (ll1 - ll2).sum() +V.sum()/2
+        llr = (ll1 - ll2).sum() +V.sum()/(2*nobs)
         omega2 = (ll1 - ll2).var()
         test_stats.append(llr/(np.sqrt(omega2*nobs)))
         
