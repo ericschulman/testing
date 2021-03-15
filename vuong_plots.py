@@ -201,7 +201,7 @@ def plot_bootstrap2(yn,xn,nobs,setup_shi,trials=500):
         ####messing around with recentering########
         
         V = compute_eigen2(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2)
-        tr_Vsq = (V*V).sum()
+        #tr_Vsq = (V*V).sum()
         #V_nmlzd = V/np.sqrt(tr_Vsq) #V, normalized by sqrt(trVsq);
         
         ###################

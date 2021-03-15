@@ -48,9 +48,9 @@ def bootstrap_distr(yn,xn,nobs,setup_shi,trials=100):
     #messing around with recentering ###################
     
     #ll1,grad1,hess1,ll2,k1, grad2,hess2,k2 = setup_shi(yn,xn)
+    #llr = (ll1 - ll2).sum()
+    #omega = np.sqrt( (ll1 -ll2).var())
     #V = compute_eigen2(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2)
-    #tr_Vsq = (V*V).sum()
-    #V_nmlzd = V/np.sqrt(tr_Vsq) #V, normalized by sqrt(trVsq);
 
     #######################################
 
@@ -64,8 +64,8 @@ def bootstrap_distr(yn,xn,nobs,setup_shi,trials=100):
         ####messing around with recentering########
         
         V = compute_eigen2(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2)
-        tr_Vsq = (V*V).sum()
-        V_nml = V/np.sqrt(tr_Vsq) #V, normalized by sqrt(trVsq);
+        #tr_Vsq = (V*V).sum()
+        #V_nml = V/np.sqrt(tr_Vsq) #V, normalized by sqrt(trVsq);
         
         ###################
 
@@ -75,7 +75,7 @@ def bootstrap_distr(yn,xn,nobs,setup_shi,trials=100):
         boot_teststat_nml = (llr +V.sum()/(2*nobs) )/(np.sqrt(omega2*nobs))
         test_stats.append( boot_teststat )
         test_stats.append( boot_teststat_nml ) #these are the same now...
-        #test_stats_nml.append((llr +V_nml.sum()/2)/(np.sqrt(omega2*nobs)))
+        
     return  test_stats, test_stats_nml
 
 
@@ -89,7 +89,8 @@ def bootstrap_test(yn,xn,nobs,setup_shi, test_stats=[0],use_boot2=False):
         ll1,grad1,hess1,ll2,k1, grad2,hess2,k2 = setup_shi(yn,xn)
         llr = (ll1 - ll2).sum()
         omega = np.sqrt( (ll1 -ll2).var())
-        test_stat = llr/(omega*np.sqrt(nobs))
+        V = compute_eigen2(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2)
+        test_stat = (llr +V.sum()/(2*nobs) )/(omega*np.sqrt(nobs))
         
         cv_lower = 2*test_stat - np.percentile(test_stats, 97.5, axis=0)
         cv_upper = 2*test_stat -  np.percentile(test_stats, 2.5, axis=0)
