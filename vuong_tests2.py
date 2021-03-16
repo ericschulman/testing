@@ -41,9 +41,9 @@ def regular_test(yn,xn,nobs,setup_shi):
     return 1*(test_stat >= 1.96) + 2*( test_stat <= -1.96)
 
 
-def bootstrap_distr(yn,xn,nobs,setup_shi,trials=100):
+def bootstrap_distr(yn,xn,nobs,setup_shi,trials=100,c=0):
     test_stats = []
-    test_stats_nml = []
+    test_statsc = []
 
     #messing around with recentering ###################
     
@@ -71,12 +71,15 @@ def bootstrap_distr(yn,xn,nobs,setup_shi,trials=100):
 
         llr = (ll1 - ll2).sum() 
         omega2 = (ll1 - ll2).var()
+        omega2c = (ll1 - ll2).var() + c*V.sum()/(nobs)
+
         boot_teststat =  (llr +V.sum()/(2*nobs) )/(np.sqrt(omega2*nobs))
-        boot_teststat_nml = (llr +V.sum()/(2*nobs) )/(np.sqrt(omega2*nobs))
-        test_stats.append( boot_teststat )
-        test_stats.append( boot_teststat_nml ) #these are the same now...
+        boot_teststatc = (llr +V.sum()/(2*nobs) )/(np.sqrt(omega2c*nobs))
         
-    return  test_stats, test_stats_nml
+        test_stats.append( boot_teststat )
+        test_statsc.append( boot_teststatc ) #these are the same now...
+        
+    return  test_stats, test_statsc
 
 
 def bootstrap_test(yn,xn,nobs,setup_shi, test_stats=[0],use_boot2=False):
@@ -98,7 +101,7 @@ def bootstrap_test(yn,xn,nobs,setup_shi, test_stats=[0],use_boot2=False):
     return  2*(0 >= cv_upper) + 1*(0 <= cv_lower)
 
 
-def monte_carlo(total,gen_data,setup_shi,trials=100,use_boot2=False):
+def monte_carlo(total,gen_data,setup_shi,trials=100,use_boot2=False,c=0):
     reg = np.array([0, 0 ,0])
     boot1 = np.array([0, 0 ,0])
     boot2 = np.array([0, 0 ,0])
@@ -119,11 +122,16 @@ def monte_carlo(total,gen_data,setup_shi,trials=100,use_boot2=False):
         reg_index = regular_test(yn,xn,nobs,setup_shi)
         
         #update test results
-        boot_distr_result,boot_distr_result_nml = bootstrap_distr(yn,xn,nobs,setup_shi,trials=trials)
+        boot_distr_result,boot_distr_resultc = bootstrap_distr(yn,xn,nobs,setup_shi,trials=trials,c=c)
+        
+        #print(np.array(boot_distr_result)-np.array(boot_distr_resultc))
+        
         boot_index1 = bootstrap_test(yn,xn,nobs,setup_shi,
             test_stats=boot_distr_result, use_boot2=False)
+        
         boot_index2 = bootstrap_test(yn,xn,nobs,setup_shi,
-            test_stats=boot_distr_result,use_boot2=True)
+            test_stats=boot_distr_resultc,use_boot2=False)
+        
         reg[reg_index] = reg[reg_index] + 1
         boot1[boot_index1] = boot1[boot_index1] + 1
         boot2[boot_index2] = boot2[boot_index2] + 1

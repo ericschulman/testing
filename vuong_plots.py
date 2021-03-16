@@ -179,7 +179,7 @@ def plot_analytic2(yn,xn,nobs,setup_shi):
     return overlap,normal
 
 
-def plot_bootstrap2(yn,xn,nobs,setup_shi,trials=500):
+def plot_bootstrap2(yn,xn,nobs,setup_shi,trials=500,c=0):
     test_stats = []
     
     #messing around with recentering ###################
@@ -208,7 +208,7 @@ def plot_bootstrap2(yn,xn,nobs,setup_shi,trials=500):
 
         #llr = (ll1 - ll2).sum() +V_nmlzd.sum()/2
         llr = (ll1 - ll2).sum() +V.sum()/(2*nobs)
-        omega2 = (ll1 - ll2).var()
+        omega2 = (ll1 - ll2).var() + c*V.sum()/(nobs)
         test_stats.append(llr/(np.sqrt(omega2*nobs)))
         
 
