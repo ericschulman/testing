@@ -17,8 +17,8 @@ def compute_eigen(yn,xn,setup_shi):
     n = len(ll1)
     
     #A_hat:
-    A_hat1 = np.concatenate([hess1,np.zeros((k1,k2))])
-    A_hat2 = np.concatenate([np.zeros((k2,k1)),-1*hess2])
+    A_hat1 = np.concatenate([hess1,np.zeros((k2,k1))])
+    A_hat2 = np.concatenate([np.zeros((k1,k2)),-1*hess2])
     A_hat = np.concatenate([A_hat1,A_hat2],axis=1)
 
     #B_hat, covariance of the score...
@@ -42,8 +42,8 @@ def compute_eigen2(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2):
     n = len(ll1)
     
     #A_hat:
-    A_hat1 = np.concatenate([hess1,np.zeros((k1,k2))])
-    A_hat2 = np.concatenate([np.zeros((k2,k1)),-1*hess2])
+    A_hat1 = np.concatenate([hess1,np.zeros((k2,k1))])
+    A_hat2 = np.concatenate([np.zeros((k1,k2)),-1*hess2])
     A_hat = np.concatenate([A_hat1,A_hat2],axis=1)
 
     #B_hat, covariance of the score...
@@ -207,7 +207,7 @@ def plot_bootstrap2(yn,xn,nobs,setup_shi,trials=500,c=0):
         ###################
 
         #llr = (ll1 - ll2).sum() +V_nmlzd.sum()/2
-        llr = (ll1 - ll2).sum() +V.sum()/(2*nobs)
+        llr = (ll1 - ll2).sum() +V.sum()/(2)
         omega2 = (ll1 - ll2).var() + c*V.sum()/(nobs)
         test_stats.append(llr/(np.sqrt(omega2*nobs)))
         

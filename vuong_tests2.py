@@ -14,10 +14,10 @@ def compute_eigen2(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2):
     
     k = k1 + k2
     n = len(ll1)
-    
+
     #A_hat:
-    A_hat1 = np.concatenate([hess1,np.zeros((k1,k2))])
-    A_hat2 = np.concatenate([np.zeros((k2,k1)),-1*hess2])
+    A_hat1 = np.concatenate([hess1,np.zeros((k2,k1))])
+    A_hat2 = np.concatenate([np.zeros((k1,k2)),-1*hess2])
     A_hat = np.concatenate([A_hat1,A_hat2],axis=1)
 
     #B_hat, covariance of the score...
@@ -73,8 +73,8 @@ def bootstrap_distr(yn,xn,nobs,setup_shi,trials=100,c=0):
         omega2 = (ll1 - ll2).var()
         omega2c = (ll1 - ll2).var() + c*V.sum()/(nobs)
 
-        boot_teststat =  (llr +V.sum()/(2*nobs) )/(np.sqrt(omega2*nobs))
-        boot_teststatc = (llr +V.sum()/(2*nobs) )/(np.sqrt(omega2c*nobs))
+        boot_teststat =  (llr +V.sum()/2 )/(np.sqrt(omega2*nobs))
+        boot_teststatc = (llr +V.sum()/2 )/(np.sqrt(omega2c*nobs))
         
         test_stats.append( boot_teststat )
         test_statsc.append( boot_teststatc ) #these are the same now...
@@ -93,7 +93,7 @@ def bootstrap_test(yn,xn,nobs,setup_shi, test_stats=[0],use_boot2=False):
         llr = (ll1 - ll2).sum()
         omega = np.sqrt( (ll1 -ll2).var())
         V = compute_eigen2(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2)
-        test_stat = (llr +V.sum()/(2*nobs) )/(omega*np.sqrt(nobs))
+        test_stat = (llr +V.sum()/2 )/(omega*np.sqrt(nobs))
         
         cv_lower = 2*test_stat - np.percentile(test_stats, 97.5, axis=0)
         cv_upper = 2*test_stat -  np.percentile(test_stats, 2.5, axis=0)
@@ -150,8 +150,8 @@ def ndVuong(yn,xn,setup_shi,alpha,nsims,verbose =False):
     n = len(ll1)
     
     #A_hat:
-    A_hat1 = np.concatenate([hess1,np.zeros((k1,k2))])
-    A_hat2 = np.concatenate([np.zeros((k2,k1)),-1*hess2])
+    A_hat1 = np.concatenate([hess1,np.zeros((k2,k1))])
+    A_hat2 = np.concatenate([np.zeros((k1,k2)),-1*hess2])
     A_hat = np.concatenate([A_hat1,A_hat2],axis=1)
 
     #B_hat, covariance of the score...
