@@ -77,7 +77,6 @@ def compute_analytic(yn,xn,setup_shi):
     #B_hat, covariance of the score...
     B_hat =  np.concatenate([grad1,-grad2],axis=1) #might be a mistake here..
     B_hat = np.cov(B_hat.transpose())
-    #print(B_hat[0:3,3:])
     
     #compute eigenvalues for weighted chisq
     sqrt_B_hat= linalg.sqrtm(B_hat)
