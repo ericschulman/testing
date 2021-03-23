@@ -177,6 +177,28 @@ def plot_analytic2(yn,xn,nobs,setup_shi):
     plt.hist(normal,density=True,bins=15,alpha=.75,label="Normal")
     return overlap,normal
 
+###################################
+
+def plot_bootstrap_pt(yn,xn,nobs,setup_shi,trials=500,c=0):
+    ll1,grad1,hess1,ll2,k1, grad2,hess2,k2 = setup_shi(yn,xn)
+    test_stats = []
+    variance_stats = []
+    llr = ll1-ll2
+     
+    for i in range(trials):
+        np.random.seed()
+        sample  = np.random.choice(np.arange(0,nobs),nobs,replace=True)
+        llrs = llr[sample]
+        test_stats.append( llrs.sum() )
+        variance_stats.append( llrs.var() )
+    
+    #final product
+    V = compute_eigen2(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2)
+    test_stats = np.array(test_stats)+ V.sum()/2
+    variance_stats = np.sqrt(variance_stats)*np.sqrt(nobs)
+
+    plt.hist( test_stats/variance_stats, density=True,bins=15, label="Bootstrap",alpha=.75)
+    return test_stats/variance_stats
 
 def plot_bootstrap2(yn,xn,nobs,setup_shi,trials=500,c=0):
     test_stats = []
@@ -200,8 +222,7 @@ def plot_bootstrap2(yn,xn,nobs,setup_shi,trials=500,c=0):
         ####messing around with recentering########
         
         V = compute_eigen2(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2)
-        #tr_Vsq = (V*V).sum()
-        #V_nmlzd = V/np.sqrt(tr_Vsq) #V, normalized by sqrt(trVsq);
+
         
         ###################
 
