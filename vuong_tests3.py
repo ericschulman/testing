@@ -81,6 +81,38 @@ def bootstrap_test(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2,c=0,trials=500):
     return  2*(0 >= cv_upper) + 1*(0 <= cv_lower)
 
 
+def bootstrap_bc(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2,c=0,trials=500):
+    #setup test stat
+    ll1,grad1,hess1,ll2,k1, grad2,hess2,k2
+    nobs = ll1.shape[0]
+    
+    V =  compute_eigen2(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2)
+    omega2 = (ll1 - ll2).var() + c*V.sum()/(nobs)
+    llr = (ll1 - ll2).sum() +V.sum()/(2)
+    test_stat = llr/np.sqrt(omega2*nobs)
+    
+    #set up bootstrap distr
+    test_stats,variance_stats = bootstrap_distr(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2,c=c,trials=trials)
+    test_stats = test_stats/variance_stats
+    
+    test_stats_tile = np.tile(test_stats,(2*tests.shape[0],1))
+    p_alpha = np.linspace(test_stats.min(),test_stats.max(),2*test_stats.shape[0])
+    p_alpha = np.tile(test_stats,(test_stats.shape[0],1))
+    p_alpha = (p_alpha.transpose() >= test_stats_tile).sum(axis=1)
+
+    z_0 = norm.ppf(p_alpha)
+    z_alpha = norm.ppf(np.linspace(0,1,2*tests.shape[0]))
+    np.linspace(0,1,2*tests.shape[0])
+
+    nx_alpha = stats.ppf(z_alpha + 2*z_0)
+
+    #set up confidence intervals
+    cv_lower = 2*test_stat - np.percentile(test_stats, 97.5, axis=0)
+    cv_upper = 2*test_stat -  np.percentile(test_stats, 2.5, axis=0)
+
+    return  2*(0 >= cv_upper) + 1*(0 <= cv_lower)
+
+
 def bootstrap_test_pivot(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2,c=0,trials=500):
     #setup test stat
     ll1,grad1,hess1,ll2,k1, grad2,hess2,k2
@@ -100,6 +132,7 @@ def bootstrap_test_pivot(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2,c=0,trials=500):
     cv_upper = 2*test_stat -  np.percentile(test_stats, 2.5, axis=0)
 
     return  2*(0 >= cv_upper) + 1*(0 <= cv_lower)
+
 
 def bootstrap_test_pt(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2,c=0,trials=500):
     #setup test stat
