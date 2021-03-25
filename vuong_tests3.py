@@ -94,22 +94,27 @@ def bootstrap_bc(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2,c=0,trials=500):
     #set up bootstrap distr
     test_stats,variance_stats = bootstrap_distr(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2,c=c,trials=trials)
     test_stats = test_stats/variance_stats
-    
-    test_stats_tile = np.tile(test_stats,(2*tests.shape[0],1))
-    p_alpha = np.linspace(test_stats.min(),test_stats.max(),2*test_stats.shape[0])
-    p_alpha = np.tile(test_stats,(test_stats.shape[0],1))
-    p_alpha = (p_alpha.transpose() >= test_stats_tile).sum(axis=1)
 
-    z_0 = norm.ppf(p_alpha)
-    z_alpha = norm.ppf(np.linspace(0,1,2*tests.shape[0]))
-    np.linspace(0,1,2*tests.shape[0])
+    #test_stats_tile = np.tile(test_stats,(2*test_stats.shape[0],1))
+    #p_alpha = np.linspace(test_stats.min(),test_stats.max(),2*test_stats.shape[0])
+    #p_alpha = np.tile(p_alpha,(test_stats.shape[0],1))
+    #p_alpha = (p_alpha >= test_stats_tile.transpose()).mean(axis=0)
 
-    nx_alpha = stats.ppf(z_alpha + 2*z_0)
-
+    #estimate median "bias"
+    z_0 = norm.ppf( (test_stats<=test_stat).mean() ) #measure of median bias
+    min_pdf, max_pdf = norm.cdf(test_stats.min()), norm.cdf(test_stats.max())
+    z_alpha = norm.ppf(np.linspace(.0001, .9999, 2*test_stats.shape[0]))
+    x_alpha = norm.cdf(z_alpha + 2*z_0)
+   
+    #adjust quantiles accordingly
+    x_lower = np.percentile(x_alpha, 2.5, axis=0)
+    x_upper = np.percentile(x_alpha, 97.5, axis=0)
+    print(x_lower, x_upper)
     #set up confidence intervals
-    cv_lower = 2*test_stat - np.percentile(test_stats, 97.5, axis=0)
-    cv_upper = 2*test_stat -  np.percentile(test_stats, 2.5, axis=0)
-
+    cv_lower = np.percentile(test_stats, x_lower*100, axis=0)
+    cv_upper = np.percentile(test_stats, x_upper*100, axis=0)
+    print(cv_lower, cv_upper)
+    print(test_stats)
     return  2*(0 >= cv_upper) + 1*(0 <= cv_lower)
 
 
@@ -246,6 +251,7 @@ def monte_carlo(total,gen_data,setup_shi,trials=100,use_boot2=False,c=0):
     reg = np.array([0, 0 ,0])
     boot1 = np.array([0, 0 ,0])
     boot2 = np.array([0, 0 ,0])
+    boot3 = np.array([0, 0 ,0])
     shi = np.array([0, 0 ,0])
     omega = 0
     llr = 0
@@ -264,26 +270,28 @@ def monte_carlo(total,gen_data,setup_shi,trials=100,use_boot2=False,c=0):
         
         #run the test
         reg_index = regular_test(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2)
-        boot_index1 = bootstrap_test_pt(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2,c=c,trials=trials)
-        boot_index2 = bootstrap_test_pivot(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2,c=c,trials=trials)
+        boot_index1 = bootstrap_test_pivot(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2,c=c,trials=trials)
+        boot_index2 = bootstrap_test_pt(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2,c=c,trials=trials) 
+        boot_index3 = bootstrap_bc(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2,c=c,trials=trials)
         shi_index = ndVuong(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2)
         
         #update the test results
         reg[reg_index] = reg[reg_index] + 1
         boot1[boot_index1] = boot1[boot_index1] + 1
         boot2[boot_index2] = boot2[boot_index2] + 1
+        boot3[boot_index3] = boot3[boot_index3] + 1
         shi[shi_index] = shi[shi_index] + 1
 
-    return reg/total,boot1/total,boot2/total,shi/total,llr/total,np.sqrt(var/total-(llr/total)**2),omega/total
+    return reg/total,boot1/total,boot2/total,boot3/total,shi/total,llr/total,np.sqrt(var/total-(llr/total)**2),omega/total
 
 def print_mc(mc_out):
-    reg,boot1,boot2, shi, llr,std, omega = mc_out
-    print('\\begin{tabular}{|c|c|c|c|c|}')
+    reg,boot1,boot2,boot3,shi, llr,std, omega = mc_out
+    print('\\begin{tabular}{|c|c|c|c|c|c|}')
     print('\\hline')
-    print('Model &  Normal & Bootstrap & Bootstrap-pt & Shi (2015) \\\\ \\hline \\hline')
+    print('Model &  Normal & Bootstrap & Bootstrap-pt & Bootstrap-bc & Shi (2015) \\\\ \\hline \\hline')
     labels = ['No selection', 'Model 1', 'Model 2']
     for i in range(3): 
-        print('%s & %.2f & %.2f & %.2f & %.2f   \\\\'%(labels[i], reg[i],boot2[i],boot1[i],shi[i]))
+        print('%s & %.2f & %.2f & %.2f & %.2f & %.2f   \\\\'%(labels[i], reg[i],boot1[i],boot2[i],boot3[i],shi[i]))
     print('\\hline')
     print('\\end{tabular}')
 
