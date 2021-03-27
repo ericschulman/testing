@@ -8,26 +8,32 @@ from scipy.optimize import minimize
 from scipy.stats import norm
 
 
-def compute_eigen2(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2):
-    hess1 = hess1/len(ll1)
-    hess2 = hess2/len(ll2)
-    
-    k = k1 + k2
-    n = len(ll1)
+def compute_eigen2(ll1,grad1,hess1,ll2,params1, grad2,hess2,params2):
+    nobs = len(ll1)
 
+    hess1 = hess1/nobs
+    hess2 = hess2/nobs
+    grad1 = grad1
+    grad2 = grad2
+
+    k1,k2 = params1.shape[0],params2.shape[0]
+    k = k1 + k2
+    
     #A_hat:
-    A_hat1 = np.concatenate([hess1,np.zeros((k2,k1))])
-    A_hat2 = np.concatenate([np.zeros((k1,k2)),-1*hess2])
-    A_hat = np.concatenate([A_hat1,A_hat2],axis=1)
+    A_hat1 = np.concatenate([hess1,np.zeros((k1,k2))],axis=1)
+    A_hat2 = np.concatenate([np.zeros((k2,k1)),hess2],axis=1)
+    A_hat = np.concatenate([A_hat1, A_hat2],axis=0)
+    Q_hat = np.concatenate([A_hat1,-1*A_hat2],axis=0)
 
     #B_hat, covariance of the score...
-    B_hat =  np.concatenate([grad1,-grad2],axis=1) #might be a mistake here..
-    B_hat = np.cov(B_hat.transpose())
+    B_hat = np.concatenate([grad1,-1*grad2],axis=1) 
+    B_hat = np.cov(B_hat,rowvar=False)
 
     #compute eigenvalues for weighted chisq
     sqrt_B_hat= linalg.sqrtm(B_hat)
-    W_hat = np.matmul(sqrt_B_hat,linalg.inv(A_hat))
+    W_hat = np.matmul(sqrt_B_hat,linalg.inv(Q_hat))
     W_hat = np.matmul(W_hat,sqrt_B_hat)
+    #print(W_hat)
     V,W = np.linalg.eig(W_hat)
 
     return V
@@ -43,65 +49,52 @@ def regular_test(yn,xn,nobs,setup_shi):
 
 def bootstrap_distr(yn,xn,nobs,setup_shi,trials=100,c=0):
     test_stats = []
-    test_statsc = []
+    test_stats_naive = []
 
-    #messing around with recentering ###################
-    
-    #ll1,grad1,hess1,ll2,k1, grad2,hess2,k2 = setup_shi(yn,xn)
-    #llr = (ll1 - ll2).sum()
-    #omega = np.sqrt( (ll1 -ll2).var())
-    #V = compute_eigen2(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2)
-
+    ############ messing around with recentering ###################
+    ll1,grad1,hess1,ll2,params1, grad2,hess2,params2 = setup_shi(yn,xn)
+    #need true "parameters" ...
     #######################################
-
+    b = 0
     for i in range(trials):
-        subn = nobs
         np.random.seed()
-        sample  = np.random.choice(np.arange(0,nobs),subn,replace=True)
+        sample  = np.random.choice(np.arange(0,nobs),nobs,replace=True)
         ys,xs = yn[sample],xn[sample]
-        ll1,grad1,hess1,ll2,k1, grad2,hess2,k2 = setup_shi(ys,xs)
+        ll1b,grad1b,hess1b,ll2b,params1b, grad2b,hess2b,params2b  = setup_shi(ys,xs)
         
         ####messing around with recentering########
-        
-        V = compute_eigen2(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2)
-        #tr_Vsq = (V*V).sum()
-        #V_nml = V/np.sqrt(tr_Vsq) #V, normalized by sqrt(trVsq);
-        
+        params_diff1 =  np.array([(params1 - params1b)])
+        b1 = np.dot(params_diff1,hess1b/nobs)
+        b1 = np.dot(b1,params_diff1.transpose())
+
+        params_diff2 =  np.array([(params2 - params2b)])
+        b2 = np.dot(params_diff2,hess2b/nobs)
+        b2 = np.dot(b2,params_diff2.transpose())
+
+        b = b + nobs/2*(b1 -b2)
         ###################
-
-        llr = (ll1 - ll2).sum() 
-        omega2 = (ll1 - ll2).var()
-        omega2c = (ll1 - ll2).var() + c*V.sum()/(nobs)
-
-        boot_teststat =  (llr +V.sum()/2 )/(np.sqrt(omega2*nobs))
-        boot_teststatc = (llr +V.sum()/2 )/(np.sqrt(omega2c*nobs))
         
-        test_stats.append( boot_teststat )
-        test_statsc.append( boot_teststatc ) #these are the same now...
-        
-    return  test_stats, test_statsc
+        llrb = (ll1b - ll2b ).sum()
+        test_stats_naive.append(llrb/ np.sqrt( (ll1b -ll2b).var()*nobs) )
+
+        llrb =  llrb - nobs/2*(b1 - b2)[0,0]
+        test_stats.append(llrb)
+
+    test_stats = np.array(test_stats)
+    return test_stats,test_stats_naive
 
 
-def bootstrap_test(yn,xn,nobs,setup_shi, test_stats=[0],use_boot2=False):
+def bootstrap_test(yn,xn,nobs,setup_shi, test_stats=[0]):
     
     cv_upper = np.percentile(test_stats, 97.5, axis=0)
     cv_lower = np.percentile(test_stats, 2.5, axis=0)
 
-    if use_boot2:
-        #compute test stat if needed
-        ll1,grad1,hess1,ll2,k1, grad2,hess2,k2 = setup_shi(yn,xn)
-        llr = (ll1 - ll2).sum()
-        omega = np.sqrt( (ll1 -ll2).var())
-        V = compute_eigen2(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2)
-        test_stat = (llr +V.sum()/2 )/(omega*np.sqrt(nobs))
-        
-        cv_lower = 2*test_stat - np.percentile(test_stats, 97.5, axis=0)
-        cv_upper = 2*test_stat -  np.percentile(test_stats, 2.5, axis=0)
-
     return  2*(0 >= cv_upper) + 1*(0 <= cv_lower)
 
 
-def monte_carlo(total,gen_data,setup_shi,trials=100,use_boot2=False,c=0):
+
+
+def monte_carlo(total,gen_data,setup_shi,trials=100,c=0):
     reg = np.array([0, 0 ,0])
     boot1 = np.array([0, 0 ,0])
     boot2 = np.array([0, 0 ,0])
@@ -122,15 +115,15 @@ def monte_carlo(total,gen_data,setup_shi,trials=100,use_boot2=False,c=0):
         reg_index = regular_test(yn,xn,nobs,setup_shi)
         
         #update test results
-        boot_distr_result,boot_distr_resultc = bootstrap_distr(yn,xn,nobs,setup_shi,trials=trials,c=c)
+        boot_distr_result,boot_distr_result_naive = bootstrap_distr(yn,xn,nobs,setup_shi,trials=trials,c=c)
         
         #print(np.array(boot_distr_result)-np.array(boot_distr_resultc))
         
         boot_index1 = bootstrap_test(yn,xn,nobs,setup_shi,
-            test_stats=boot_distr_result, use_boot2=False)
+            test_stats=boot_distr_result)
         
         boot_index2 = bootstrap_test(yn,xn,nobs,setup_shi,
-            test_stats=boot_distr_resultc,use_boot2=False)
+            test_stats=boot_distr_result_naive)
         
         reg[reg_index] = reg[reg_index] + 1
         boot1[boot_index1] = boot1[boot_index1] + 1
@@ -144,11 +137,15 @@ def monte_carlo(total,gen_data,setup_shi,trials=100,use_boot2=False,c=0):
 
 def ndVuong(yn,xn,setup_shi,alpha,nsims,verbose =False):
     
-    ll1,grad1,hess1,ll2,k1, grad2,hess2,k2 = setup_shi(yn,xn)
-    
-    k = k1 + k2
+    ll1,grad1,hess1,ll2,params1, grad2,hess2,params2 = setup_shi(yn,xn)
     n = len(ll1)
-    
+
+    hess1 = hess1/n
+    hess2 = hess2/n
+
+    k1,k2 = params1.shape[0],params2.shape[0]
+    k = k1 + k2
+
     #A_hat:
     A_hat1 = np.concatenate([hess1,np.zeros((k2,k1))])
     A_hat2 = np.concatenate([np.zeros((k1,k2)),-1*hess2])

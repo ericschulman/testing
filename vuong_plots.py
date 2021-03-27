@@ -9,10 +9,11 @@ from scipy.stats import norm
 
 
 def compute_eigen(yn,xn,setup_shi):
-    ll1,grad1,hess1,ll2,k1, grad2,hess2,k2 = setup_shi(yn,xn)
+    ll1,grad1,hess1,ll2,params1, grad2,hess2,params2 = setup_shi(yn,xn)
+    k1,k2 = params1.shape[0],params2.shape[0]
     hess1 = hess1/len(ll1)
     hess2 = hess2/len(ll2)
-    
+
     k = k1 + k2
     n = len(ll1)
     
@@ -34,38 +35,50 @@ def compute_eigen(yn,xn,setup_shi):
     return V
 
 
-def compute_eigen2(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2):
-    hess1 = hess1/len(ll1)
-    hess2 = hess2/len(ll2)
-    
+def compute_eigen2(ll1,grad1,hess1,ll2,params1, grad2,hess2,params2):
+    nobs = len(ll1)
+
+    hess1 = hess1/nobs
+    hess2 = hess2/nobs
+
+    k1,k2 = params1.shape[0],params2.shape[0]
     k = k1 + k2
-    n = len(ll1)
     
     #A_hat:
-    A_hat1 = np.concatenate([hess1,np.zeros((k2,k1))])
-    A_hat2 = np.concatenate([np.zeros((k1,k2)),-1*hess2])
-    A_hat = np.concatenate([A_hat1,A_hat2],axis=1)
+    A_hat1 = np.concatenate([hess1,np.zeros((k1,k2))],axis=1)
+    A_hat2 = np.concatenate([np.zeros((k2,k1)),hess2],axis=1)
+    A_hat = np.concatenate([A_hat1, A_hat2],axis=0)
+    Q_hat = np.concatenate([A_hat1,-1*A_hat2],axis=0)
 
     #B_hat, covariance of the score...
-    B_hat =  np.concatenate([grad1,-grad2],axis=1) #might be a mistake here..
-    B_hat = np.cov(B_hat.transpose())
+    B_hat = np.concatenate([grad1,-1*grad2],axis=1) 
+    B_hat = np.cov(B_hat,rowvar=False)
 
     #compute eigenvalues for weighted chisq
     sqrt_B_hat= linalg.sqrtm(B_hat)
-    W_hat = np.matmul(sqrt_B_hat,linalg.inv(A_hat))
+    W_hat = np.matmul(sqrt_B_hat,linalg.inv(Q_hat))
     W_hat = np.matmul(W_hat,sqrt_B_hat)
+    #print(W_hat)
     V,W = np.linalg.eig(W_hat)
 
-    return V
+
+    #try another way to make sure I understand
+    S_hat = linalg.inv(A_hat).dot(B_hat).dot( linalg.inv(A_hat))
+    print(S_hat)
+    print(Q_hat.dot(S_hat))
+    print(np.linalg.eig(Q_hat.dot(S_hat))[0].sum()/2)
+
+    return V.astype(float)
+
 
 
 def compute_analytic(yn,xn,setup_shi):
     nsims = 5000
 
-    ll1,grad1,hess1,ll2,k1, grad2,hess2,k2 = setup_shi(yn,xn)
+    ll1,grad1,hess1,ll2,params1, grad2,hess2,params2 = setup_shi(yn,xn)
     hess1 = hess1/len(ll1)
     hess2 = hess2/len(ll2)
-    
+    k1,k2 = params1.shape[0],params2.shape[0]
     k = k1 + k2
     n = len(ll1)
     
@@ -200,17 +213,50 @@ def plot_bootstrap_pt(yn,xn,nobs,setup_shi,trials=500,c=0):
     plt.hist( test_stats/variance_stats, density=True,bins=15, label="Bootstrap",alpha=.75)
     return test_stats/variance_stats
 
+
+def plot_bootstrap_recenter(yn,xn,nobs,setup_shi,trials=500,c=0):
+    test_stats = []
+    
+    ############ messing around with recentering ###################
+    ll1,grad1,hess1,ll2,theta1, grad2,hess2,theta2 = setup_shi(yn,xn)
+    #need true "parameters" ...
+    #######################################
+    b = 0
+    for i in range(trials):
+        np.random.seed()
+        sample  = np.random.choice(np.arange(0,nobs),nobs,replace=True)
+        ys,xs = yn[sample],xn[sample]
+        ll1b,grad1b,hess1b,ll2b,theta1b, grad2b,hess2b,theta2b  = setup_shi(ys,xs)
+        
+        ####messing around with recentering########
+        theta_diff1 =  np.array([(theta1 - theta1b)])
+        b1 = np.dot(theta_diff1,-1*hess1b/nobs)
+        b1 = np.dot(b1,theta_diff1.transpose())
+
+        theta_diff2 =  np.array([(theta2 - theta2b)])
+        b2 = np.dot(theta_diff2,-1*hess2b/nobs)
+        b2 = np.dot(b2,theta_diff2.transpose())
+
+        b = b + nobs/2*(b1 -b2)
+        ###################
+        
+        llrb = (ll1b - ll2b ).sum()
+        llrb =  llrb - nobs/2*(b1 - b2)[0,0]
+  
+        omega2b = (ll1b - ll2b).var()
+        test_stats.append(llrb)
+        
+    print(b/trials, np.array(ll1-ll2).sum() )
+    test_stats = np.array(test_stats)
+    plt.hist( test_stats/test_stats.std(), density=True,bins=15, label="Bootstrap",alpha=.75)
+    return test_stats
+
+
+
+
 def plot_bootstrap2(yn,xn,nobs,setup_shi,trials=500,c=0):
     test_stats = []
     
-    #messing around with recentering ###################
-    
-    #ll1,grad1,hess1,ll2,k1, grad2,hess2,k2 = setup_shi(yn,xn)
-    #V = compute_eigen2(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2)
-    #tr_Vsq = (V*V).sum()
-    #V_nmlzd = V/np.sqrt(tr_Vsq) #V, normalized by sqrt(trVsq);
-
-    #######################################
 
     for i in range(trials):
         subn = nobs

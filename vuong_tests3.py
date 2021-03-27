@@ -95,26 +95,19 @@ def bootstrap_bc(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2,c=0,trials=500):
     test_stats,variance_stats = bootstrap_distr(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2,c=c,trials=trials)
     test_stats = test_stats/variance_stats
 
-    #test_stats_tile = np.tile(test_stats,(2*test_stats.shape[0],1))
-    #p_alpha = np.linspace(test_stats.min(),test_stats.max(),2*test_stats.shape[0])
-    #p_alpha = np.tile(p_alpha,(test_stats.shape[0],1))
-    #p_alpha = (p_alpha >= test_stats_tile.transpose()).mean(axis=0)
-
     #estimate median "bias"
-    z_0 = norm.ppf( (test_stats<=test_stat).mean() ) #measure of median bias
-    min_pdf, max_pdf = norm.cdf(test_stats.min()), norm.cdf(test_stats.max())
+    z_0 = norm.ppf( (test_stats>=test_stat).mean() ) #measure of median bias
     z_alpha = norm.ppf(np.linspace(.0001, .9999, 2*test_stats.shape[0]))
     x_alpha = norm.cdf(z_alpha + 2*z_0)
    
     #adjust quantiles accordingly
     x_lower = np.percentile(x_alpha, 2.5, axis=0)
     x_upper = np.percentile(x_alpha, 97.5, axis=0)
-    print(x_lower, x_upper)
+
     #set up confidence intervals
     cv_lower = np.percentile(test_stats, x_lower*100, axis=0)
     cv_upper = np.percentile(test_stats, x_upper*100, axis=0)
-    print(cv_lower, cv_upper)
-    print(test_stats)
+
     return  2*(0 >= cv_upper) + 1*(0 <= cv_lower)
 
 
@@ -153,10 +146,14 @@ def bootstrap_test_pt(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2,c=0,trials=500):
     test_stats,variance_stats = bootstrap_distr(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2,c=c,trials=trials)
     
     #set up confidence intervals
+    test_stats = (test_stats- llr)/np.sqrt(omega2*nobs)
     cv_lower = llr - np.percentile(test_stats, 97.5, axis=0)*np.sqrt(omega2*nobs)
     cv_upper = llr - np.percentile(test_stats, 2.5, axis=0)*np.sqrt(omega2*nobs)
 
-    return  1*(0 >= cv_upper) + 2*(0 <= cv_lower)
+    #cv_lower = np.percentile(test_stats, 2.5, axis=0) - llr/np.sqrt(omega2*nobs)
+    #cv_upper = np.percentile(test_stats, 97.5, axis=0) - llr/np.sqrt(omega2*nobs)
+
+    return  2*(0 >= cv_upper) + 1*(0 <= cv_lower)
 
 ######################################################################################################
 ######################################################################################################
@@ -166,6 +163,9 @@ def ndVuong(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2,alpha=.05,nsims=1000,verbose 
     
     k = k1 + k2
     n = len(ll1)
+
+    hess1 = hess1/n
+    hess2 = hess2/n
     
     #A_hat:
     A_hat1 = np.concatenate([hess1,np.zeros((k2,k1))])
