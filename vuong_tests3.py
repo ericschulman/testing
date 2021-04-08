@@ -36,7 +36,7 @@ def compute_eigen2(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2):
     return V
 
 
-def regular_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,trials=500,c=0):
+def regular_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,trials=500):
     nobs = ll1.shape[0]
     
     llr = (ll1 - ll2).sum()
@@ -45,7 +45,32 @@ def regular_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,trials=500,c=0)
     return 1*(test_stat >= 1.96) + 2*( test_stat <= -1.96)
 
 
-def bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,trials=500,c=0):
+def choose_c(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,trials=500):
+    
+    #set up stuff
+    V =  compute_eigen2(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
+    nobs = ll1.shape[0]
+
+    #get bootstrap distribution.
+    test_stats,variance_stats,llr,omega  = bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=0,trials=trials)
+    
+    #set c so the variance of the test stats is about omega?
+    cstars = np.arange(0,16,2)
+    cstars = 2**cstars - 1
+    omegas = nobs*(ll1 - ll2).var() + cstars*(V*V).sum()
+    for omega in omegas:
+        cv_lower = np.percentile(test_stats - test_stats.mean(), 2.5, axis=0)/omega
+        cv_upper = np.percentile(test_stats- test_stats.mean(), 97.5, axis=0)/omega
+        print(cv_lower,cv_upper,omega)
+    cstar_results = (omegas - np.array(test_stats).var())**2
+    cstar_results = np.array(cstar_results)
+    c = cstars[cstar_results.argmin()]
+
+    # return the cstar that makes omega =1?
+    return c
+
+
+def bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=0,trials=500):
     nobs = ll1.shape[0]
     
     test_stats = []
@@ -58,20 +83,26 @@ def bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,trials=500,c
         llrs = llr[sample]
         test_stats.append( llrs.sum() )
         variance_stats.append( llrs.var() )
-    
-    #final product
-    V = compute_eigen2(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
-    test_stats = np.array(test_stats)+ V.sum()/2
-    variance_stats = np.sqrt(variance_stats)*np.sqrt(nobs) + c*(V*V).sum()/(nobs)
 
-    return test_stats,variance_stats
+
+    #final product, bootstrap
+    V =  compute_eigen2(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
+    test_stats = np.array(test_stats+ V.sum()/(2))
+    variance_stats = np.sqrt(np.array(variance_stats)*nobs + c*(V*V).sum())
+
+    #set up test stat   
+    omega = np.sqrt((ll1 - ll2).var()*nobs + c*(V*V).sum())
+    llr = (ll1 - ll2).sum() +V.sum()/(2)
+
+    return test_stats,variance_stats,llr,omega
+    
 
 
 def bootstrap_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=0,trials=500):
     nobs = ll1.shape[0]
 
     #set up bootstrap distr
-    test_stats,variance_stats = bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=c,trials=trials)
+    test_stats,variance_stats,llr,omega  = bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=c,trials=trials)
     test_stats = test_stats/variance_stats
     
     #set up confidence intervals
@@ -85,15 +116,11 @@ def bootstrap_bc(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=0,trials=500)
     #setup test stat
     nobs = ll1.shape[0]
     
-    V =  compute_eigen2(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
-    omega2 = (ll1 - ll2).var() + c*(V*V).sum()/(nobs)
-    llr = (ll1 - ll2).sum() +V.sum()/(2)
-    test_stat = llr/np.sqrt(omega2*nobs)
-    
     #set up bootstrap distr
-    test_stats,variance_stats = bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=c,trials=trials)
+    test_stats,variance_stats,llr,omega  = bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=c,trials=trials)
     test_stats = test_stats/variance_stats
-
+    test_stat = llr/omega
+    
     #estimate median "bias"
     z_0 = norm.ppf( (test_stats<=test_stat).mean() ) #measure of median bias
     z_alpha = norm.ppf(np.linspace(.0001, .9999, 2*test_stats.shape[0]))
@@ -115,14 +142,10 @@ def bootstrap_test_pivot(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=0,tri
     ll1,grad1,hess1,params1,ll2,grad2,hess2,params2
     nobs = ll1.shape[0]
     
-    V =  compute_eigen2(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
-    omega2 = (ll1 - ll2).var() + c*(V*V).sum()/(nobs)
-    llr = (ll1 - ll2).sum() +V.sum()/(2)
-    test_stat = llr/np.sqrt(omega2*nobs)
-    
     #set up bootstrap distr
-    test_stats,variance_stats = bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=c,trials=trials)
+    test_stats,variance_stats,llr,omega  = bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=c,trials=trials)
     test_stats = test_stats/variance_stats
+    test_stat = llr/omega
     
     #set up confidence intervals
     cv_lower = 2*test_stat - np.percentile(test_stats, 97.5, axis=0)
@@ -132,21 +155,15 @@ def bootstrap_test_pivot(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=0,tri
 
 
 def bootstrap_test_pt(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=0,trials=500):
-    #setup test stat
     nobs = ll1.shape[0]
-    
-    V =  compute_eigen2(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
-    omega2 = (ll1 - ll2).var() + c*(V*V).sum()/(nobs)
-    llr = (ll1 - ll2).sum() +V.sum()/(2)
-    test_stat = llr/np.sqrt(omega2*nobs)
-    
     #set up bootstrap distr
-    test_stats,variance_stats = bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=c,trials=trials)
+    test_stats,variance_stats,llr,omega  = bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=c,trials=trials)
+
     
     #set up confidence intervals
-    test_stats = (test_stats- llr)/np.sqrt(omega2*nobs)
-    cv_lower = llr - np.percentile(test_stats, 97.5, axis=0)*np.sqrt(omega2*nobs)
-    cv_upper = llr - np.percentile(test_stats, 2.5, axis=0)*np.sqrt(omega2*nobs)
+    test_stats = (test_stats- llr)/variance_stats
+    cv_lower = llr - np.percentile(test_stats, 97.5, axis=0)*omega
+    cv_upper = llr - np.percentile(test_stats, 2.5, axis=0)*omega
 
     return  2*(0 >= cv_upper) + 1*(0 <= cv_lower)
 
@@ -154,7 +171,7 @@ def bootstrap_test_pt(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=0,trials
 ######################################################################################################
 ######################################################################################################
 
-def ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,alpha=.05,nsims=1000,c=0):
+def ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,alpha=.05,nsims=1000):
     
     n = ll1.shape[0]
     hess1 = hess1/n
@@ -214,7 +231,28 @@ def ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,alpha=.05,nsims=1000
     z_norm_sim = max(z_normal,np.quantile(np.abs(Z_L),1-alpha)) #simulated z_normal
     
     cv = max(cv0,z_normal)
-    cstar = np.array([c])
+    cstar = 0
+
+    if cv0 - z_norm_sim > 0.5:  # if critical value with c=0 is not very big
+        #set up array with cstars
+        cstars = np.arange(0,16,2)
+        cstars = 2**cstars - 1
+
+        ##will loop through to find best...
+        cstar_results = []
+        cv_results = []
+
+        for cstar in cstars:
+            cv_result =  max(quant(sigstar(cstar),cstar),z_normal)
+            cv_results.append(cv_result)
+            cstar_results.append( (cv_result - z_norm_sim + .5)**2 )
+
+        cstar_results = np.array(cstar_results)
+        cv_results = np.array(cv_results)
+
+        #set critical value and c_star?
+        cv = cv_results[cstar_results.argmin()]
+        cstar = cstars[cstar_results.argmin()]
 
     #Computing the ND test statistic:
     nLR_hat = ll1.sum() - ll2.sum()
@@ -222,7 +260,7 @@ def ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,alpha=.05,nsims=1000
     #Non-degenerate Vuong Tests    
     Tnd = (nLR_hat+V.sum()/2)/np.sqrt(n*nomega2_hat + cstar*(V*V).sum())
     
-    return 1*(Tnd[0] >= cv) + 2*(Tnd[0] <= -cv)
+    return 1*(Tnd >= cv) + 2*(Tnd <= -cv)
 
 ######################################################################################################
 ######################################################################################################
@@ -230,7 +268,7 @@ def ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,alpha=.05,nsims=1000
 
 
 
-def monte_carlo(total,gen_data,setup_shi,trials=100,use_boot2=False,c=0):
+def monte_carlo(total,gen_data,setup_shi,trials=500):
     reg = np.array([0, 0 ,0])
     boot1 = np.array([0, 0 ,0])
     boot2 = np.array([0, 0 ,0])
@@ -253,12 +291,13 @@ def monte_carlo(total,gen_data,setup_shi,trials=100,use_boot2=False,c=0):
         
         #run the test
         reg_index = regular_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
-        #boot_index1 = bootstrap_test_pt(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=c,trials=trials)
-        c_star = 20*nobs
-        boot_index1 = bootstrap_test_pt(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=c_star,trials=trials)
-        boot_index2 = bootstrap_test_pt(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=c_star,trials=trials)
-        boot_index3 = bootstrap_bc(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=c_star,trials=trials)
         shi_index = ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
+
+        #do bootstrap test with c...
+        cstar = choose_c(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,trials=500)
+        boot_index1 = bootstrap_test_pivot(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=cstar,trials=trials)
+        boot_index2 = bootstrap_test_pt(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=cstar,trials=trials)
+        boot_index3 = bootstrap_bc(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=cstar,trials=trials)
         
         #update the test results
         reg[reg_index] = reg[reg_index] + 1
