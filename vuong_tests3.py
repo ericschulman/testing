@@ -58,14 +58,9 @@ def choose_c(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,trials=500):
     cstars = np.arange(0,16,2)
     cstars = 2**cstars - 1
     omegas = nobs*(ll1 - ll2).var() + cstars*(V*V).sum()
-    for omega in omegas:
-        cv_lower = np.percentile(test_stats - test_stats.mean(), 2.5, axis=0)/omega
-        cv_upper = np.percentile(test_stats- test_stats.mean(), 97.5, axis=0)/omega
-        print(cv_lower,cv_upper,omega)
-    cstar_results = (omegas - np.array(test_stats).var())**2
-    cstar_results = np.array(cstar_results)
+    cstar_results =  (omegas - nobs)**2
     c = cstars[cstar_results.argmin()]
-
+    
     # return the cstar that makes omega =1?
     return c
 
