@@ -227,34 +227,35 @@ def ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,alpha=.05,nsims=1000
     
     cv = max(cv0,z_normal)
     cstar = 0
+    adapt_c = False
 
-    if cv0 - z_norm_sim > 0.5:  # if critical value with c=0 is not very big
-        #set up array with cstars
-        cstars = np.arange(0,16,2)
-        cstars = 2**cstars - 1
+    if adapt_c:
+        if cv0 - z_norm_sim > 0.5:  # if critical value with c=0 is not very big
+            #set up array with cstars
+            cstars = np.arange(0,16,2)
+            cstars = 2**cstars - 1
 
-        ##will loop through to find best...
-        cstar_results = []
-        cv_results = []
+            ##will loop through to find best...
+            cstar_results = []
+            cv_results = []
 
-        for cstar in cstars:
-            cv_result =  max(quant(sigstar(cstar),cstar),z_normal)
-            cv_results.append(cv_result)
-            cstar_results.append( (cv_result - z_norm_sim + .5)**2 )
+            for cstar in cstars:
+                cv_result =  max(quant(sigstar(cstar),cstar),z_normal)
+                cv_results.append(cv_result)
+                cstar_results.append( (cv_result - z_norm_sim + .5)**2 )
 
-        cstar_results = np.array(cstar_results)
-        cv_results = np.array(cv_results)
+            cstar_results = np.array(cstar_results)
+            cv_results = np.array(cv_results)
 
-        #set critical value and c_star?
-        cv = cv_results[cstar_results.argmin()]
-        cstar = cstars[cstar_results.argmin()]
+            #set critical value and c_star?
+            cv = cv_results[cstar_results.argmin()]
+            cstar = cstars[cstar_results.argmin()]
 
     #Computing the ND test statistic:
     nLR_hat = ll1.sum() - ll2.sum()
     nomega2_hat = (ll1- ll2).var() ### this line may not be correct #####                    
     #Non-degenerate Vuong Tests    
     Tnd = (nLR_hat+V.sum()/2)/np.sqrt(n*nomega2_hat + cstar*(V*V).sum())
-    
     return 1*(Tnd >= cv) + 2*(Tnd <= -cv)
 
 ######################################################################################################
@@ -286,14 +287,18 @@ def monte_carlo(total,gen_data,setup_shi,trials=500):
         
         #run the test
         reg_index = regular_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
-        shi_index = ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
 
+    #if reg_index == 0:
+        # to speed things up skip the test if regular rejects...
+        shi_index,boot_index1,boot_index2,boot_index3 = 0,0,0,0 #take worst case for now...
+    #else:
         #do bootstrap test with c...
         cstar = choose_c(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,trials=500)
+        shi_index = ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
         boot_index1 = bootstrap_test_pivot(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=cstar,trials=trials)
         boot_index2 = bootstrap_test_pt(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=cstar,trials=trials)
         boot_index3 = bootstrap_bc(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=cstar,trials=trials)
-        
+            
         #update the test results
         reg[reg_index] = reg[reg_index] + 1
         boot1[boot_index1] = boot1[boot_index1] + 1
@@ -307,7 +312,7 @@ def print_mc(mc_out):
     reg,boot1,boot2,boot3,shi, llr,std, omega = mc_out
     print('\\begin{tabular}{|c|c|c|c|c|c|}')
     print('\\hline')
-    print('Model &  Normal & Bootstrap & Bootstrap-bc & Bootstrap-bc & Shi (2015) \\\\ \\hline \\hline')
+    print('Model &  Normal & Bootstrap & Bootstrap-pt & Bootstrap-bc & Shi (2015) \\\\ \\hline \\hline')
     labels = ['No selection', 'Model 1', 'Model 2']
     for i in range(3): 
         print('%s & %.2f & %.2f & %.2f & %.2f & %.2f   \\\\'%(labels[i], reg[i],boot1[i],boot2[i],boot3[i],shi[i]))

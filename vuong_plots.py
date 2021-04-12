@@ -9,18 +9,21 @@ from scipy.stats import norm
 
 
 def compute_eigen(yn,xn,setup_shi):
-    ll1,grad1,hess1,ll2,params1, grad2,hess2,params2 = setup_shi(yn,xn)
+    ll1,grad1,hess1,params1,ll2, grad2,hess2,params2 = setup_shi(yn,xn)
     k1,k2 = params1.shape[0],params2.shape[0]
     hess1 = hess1/len(ll1)
     hess2 = hess2/len(ll2)
-
     k = k1 + k2
-    n = len(ll1)
     
     #A_hat:
     A_hat1 = np.concatenate([hess1,np.zeros((k2,k1))])
     A_hat2 = np.concatenate([np.zeros((k1,k2)),-1*hess2])
     A_hat = np.concatenate([A_hat1,A_hat2],axis=1)
+
+    #B_hat, covariance of the score...
+    B_hat =  np.concatenate([grad1,-grad2],axis=1) #might be a mistake here..
+    B_hat = np.cov(B_hat.transpose())
+
 
     #B_hat, covariance of the score...
     B_hat =  np.concatenate([grad1,-grad2],axis=1) #might be a mistake here..
@@ -35,7 +38,7 @@ def compute_eigen(yn,xn,setup_shi):
     return V
 
 
-def compute_eigen2(ll1,grad1,hess1,ll2,params1, grad2,hess2,params2):
+def compute_eigen2(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2):
     nobs = len(ll1)
 
     hess1 = hess1/nobs
@@ -45,10 +48,10 @@ def compute_eigen2(ll1,grad1,hess1,ll2,params1, grad2,hess2,params2):
     k = k1 + k2
     
     #A_hat:
-    A_hat1 = np.concatenate([hess1,np.zeros((k1,k2))],axis=1)
-    A_hat2 = np.concatenate([np.zeros((k2,k1)),hess2],axis=1)
-    A_hat = np.concatenate([A_hat1, A_hat2],axis=0)
-    Q_hat = np.concatenate([A_hat1,-1*A_hat2],axis=0)
+    A_hat1 = np.concatenate([hess1,np.zeros((k2,k1))])
+    A_hat2 = np.concatenate([np.zeros((k1,k2)),hess2])
+    A_hat = np.concatenate([A_hat1,A_hat2],axis=1)
+    Q_hat = np.concatenate([A_hat1,-1*A_hat2],axis=1)
 
     #B_hat, covariance of the score...
     B_hat = np.concatenate([grad1,-1*grad2],axis=1) 
@@ -64,9 +67,9 @@ def compute_eigen2(ll1,grad1,hess1,ll2,params1, grad2,hess2,params2):
 
     #try another way to make sure I understand
     S_hat = linalg.inv(A_hat).dot(B_hat).dot( linalg.inv(A_hat))
-    print(S_hat)
-    print(Q_hat.dot(S_hat))
-    print(np.linalg.eig(Q_hat.dot(S_hat))[0].sum()/2)
+    #print(S_hat)
+    #print(Q_hat.dot(S_hat))
+    #print(np.linalg.eig(Q_hat.dot(S_hat))[0].sum()/2)
 
     return V.astype(float)
 
@@ -75,17 +78,20 @@ def compute_eigen2(ll1,grad1,hess1,ll2,params1, grad2,hess2,params2):
 def compute_analytic(yn,xn,setup_shi):
     nsims = 5000
 
-    ll1,grad1,hess1,ll2,params1, grad2,hess2,params2 = setup_shi(yn,xn)
+    ll1,grad1,hess1,params1,ll2, grad2,hess2,params2 = setup_shi(yn,xn)
     hess1 = hess1/len(ll1)
     hess2 = hess2/len(ll2)
     k1,k2 = params1.shape[0],params2.shape[0]
     k = k1 + k2
-    n = len(ll1)
     
     #A_hat:
-    A_hat1 = np.concatenate([hess1,np.zeros((k1,k2))])
-    A_hat2 = np.concatenate([np.zeros((k2,k1)),-1*hess2])
+    A_hat1 = np.concatenate([hess1,np.zeros((k2,k1))])
+    A_hat2 = np.concatenate([np.zeros((k1,k2)),-1*hess2])
     A_hat = np.concatenate([A_hat1,A_hat2],axis=1)
+
+    #B_hat, covariance of the score...
+    B_hat =  np.concatenate([grad1,-grad2],axis=1) #might be a mistake here..
+    B_hat = np.cov(B_hat.transpose())
 
     #B_hat, covariance of the score...
     B_hat =  np.concatenate([grad1,-grad2],axis=1) #might be a mistake here..
@@ -135,11 +141,12 @@ def plot_true(gen_data,setup_shi):
     for i in range(trials):
         np.random.seed()
         ys,xs,nobs = gen_data()
-        ll1,grad1,hess1,ll2,k1, grad2,hess2,k2 = setup_shi(ys,xs)
+        ll1,grad1,hess1,k1,ll2,grad2,hess2,k2 = setup_shi(ys,xs)
         llr = (ll1 - ll2).sum()
         true_stats.append(2*llr)
 
-    plt.hist( true_stats, density=True,bins=15, label="True",alpha=.75)
+    true_stats= np.array(true_stats)
+    plt.hist( true_stats , density=True,bins=15, label="True",alpha=.75)
     return true_stats
 
 
@@ -161,7 +168,7 @@ def plot_bootstrap(yn,xn,nobs,setup_shi):
         np.random.seed()
         sample  = np.random.choice(np.arange(0,nobs),subn,replace=True)
         ys,xs = yn[sample],xn[sample]
-        ll1,grad1,hess1,ll2,k1, grad2,hess2,k2 = setup_shi(ys,xs)
+        ll1,grad1,hess1,k1,ll2, grad2,hess2,k2 = setup_shi(ys,xs)
         llr = (ll1 - ll2).sum()
         test_stats.append(2*llr)
     
@@ -176,11 +183,13 @@ def plot_true2(gen_data,setup_shi,trials=500):
         np.random.seed()
         ys,xs,nobs = gen_data()
         nobs = ys.shape[0]
-        ll1,grad1,hess1,ll2,k1, grad2,hess2,k2 = setup_shi(ys,xs)
+        ll1,grad1,hess1,k1,ll2, grad2,hess2,k2 = setup_shi(ys,xs)
         llr = (ll1 - ll2).sum()
         omega2 = (ll1 - ll2).var()
         true_stats.append(llr/(np.sqrt(omega2*nobs)))
 
+    true_stats= np.array(true_stats)
+    true_stats = true_stats - true_stats.mean()
     plt.hist( true_stats, density=True,bins=15, label="True",alpha=.75)
     return true_stats
 
@@ -193,7 +202,7 @@ def plot_analytic2(yn,xn,nobs,setup_shi):
 ###################################
 
 def plot_bootstrap_pt(yn,xn,nobs,setup_shi,trials=500,c=0):
-    ll1,grad1,hess1,ll2,k1, grad2,hess2,k2 = setup_shi(yn,xn)
+    ll1,grad1,hess1,k1,ll2,grad2,hess2,k2 = setup_shi(yn,xn)
     test_stats = []
     variance_stats = []
     llr = ll1-ll2
@@ -206,8 +215,9 @@ def plot_bootstrap_pt(yn,xn,nobs,setup_shi,trials=500,c=0):
         variance_stats.append( llrs.var() )
     
     #final product
-    V = compute_eigen2(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2)
-    test_stats = np.array(test_stats)+ V.sum()/2
+    V = compute_eigen2(ll1,grad1,hess1,k1,ll2,grad2,hess2,k2)
+    test_stats = np.array(test_stats)
+    test_stats  = test_stats - test_stats.mean()
     variance_stats = np.sqrt(variance_stats)*np.sqrt(nobs)
 
     plt.hist( test_stats/variance_stats, density=True,bins=15, label="Bootstrap",alpha=.75)
@@ -226,7 +236,7 @@ def plot_bootstrap_recenter(yn,xn,nobs,setup_shi,trials=500,c=0):
         np.random.seed()
         sample  = np.random.choice(np.arange(0,nobs),nobs,replace=True)
         ys,xs = yn[sample],xn[sample]
-        ll1b,grad1b,hess1b,ll2b,theta1b, grad2b,hess2b,theta2b  = setup_shi(ys,xs)
+        ll1b,grad1b,hess1b,theta1b,ll2b, grad2b,hess2b,theta2b  = setup_shi(ys,xs)
         
         ####messing around with recentering########
         theta_diff1 =  np.array([(theta1 - theta1b)])
@@ -263,11 +273,11 @@ def plot_bootstrap2(yn,xn,nobs,setup_shi,trials=500,c=0):
         np.random.seed()
         sample  = np.random.choice(np.arange(0,nobs),subn,replace=True)
         ys,xs = yn[sample],xn[sample]
-        ll1,grad1,hess1,ll2,k1, grad2,hess2,k2 = setup_shi(ys,xs)
+        ll1,grad1,hess1,k1,ll2, grad2,hess2,k2 = setup_shi(ys,xs)
         
         ####messing around with recentering########
         
-        V = compute_eigen2(ll1,grad1,hess1,ll2,k1, grad2,hess2,k2)
+        V = compute_eigen2(ll1,grad1,hess1,k1,ll2, grad2,hess2,k2)
 
         
         ###################
