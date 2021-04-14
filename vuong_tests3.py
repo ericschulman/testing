@@ -315,7 +315,7 @@ def print_mc(mc_out):
     print('Model &  Normal & Bootstrap & Bootstrap-pt & Bootstrap-bc & Shi (2015) \\\\ \\hline \\hline')
     labels = ['No selection', 'Model 1', 'Model 2']
     for i in range(3): 
-        print('%s & %.2f & %.2f & %.2f & %.2f & %.2f   \\\\'%(labels[i], reg[i],boot1[i],boot2[i],boot3[i],shi[i]))
+        print('%s & %.2f & %.2f & %.2f & %.2f & %.2f   \\\\'%(labels[i], round(reg[i],2),round(boot1[i],2),round(boot2[i],2),round(boot3[i],2),round(shi[i],2)))
     print('\\hline')
     print('\\end{tabular}')
 
