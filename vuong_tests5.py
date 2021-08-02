@@ -43,7 +43,7 @@ def regular_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,trials=500):
     
     omega = np.sqrt( (ll1 -ll2).var())
     V =  compute_eigen2(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
-    llr = (ll1 - ll2).sum() + V.sum()/(2) #fix the test...
+    llr = (ll1 - ll2).sum() #+ V.sum()/(2) #fix the test...
     test_stat = llr/(omega*np.sqrt(nobs))
     return 1*(test_stat >= 1.96) + 2*( test_stat <= -1.96)
 
@@ -54,17 +54,17 @@ def choose_c(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,trials=500):
     V =  compute_eigen2(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
     nobs = ll1.shape[0]
 
-    #get bootstrap distribution.
-    test_stats,variance_stats,llr,omega  = bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=0,trials=trials)
+    #get bootstrap distribution. not actually nessecary?
+    #test_stats,variance_stats,llr,omega  = bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=0,trials=trials)
     
     #set c so the variance of the test stats is about omega?
     cstars = np.arange(0,16,2)
-    cstars = 2**cstars - 1
+    cstars = 2**cstars 
     omegas = nobs*(ll1 - ll2).var() + cstars*(V*V).sum()
     cstar_results =  (omegas - nobs)**2
     c = cstars[cstar_results.argmin()]
     
-    # return the cstar that makes omega =1?
+    # return the cstar that makes omega =2?
     return c
 
 
@@ -106,7 +106,6 @@ def bootstrap_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=0,trials=50
     #set up confidence intervals
     cv_lower = np.percentile(test_stats, 2.5, axis=0)
     cv_upper = np.percentile(test_stats, 97.5, axis=0) 
-
     return  2*(0 >= cv_upper) + 1*(0 <= cv_lower)
 
 
@@ -135,7 +134,7 @@ def bootstrap_bc(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=0,trials=500)
     return  2*(0 >= cv_upper) + 1*(0 <= cv_lower)
 
 
-def bootstrap_test_pivot(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=0,trials=500):
+def bootstrap_test_pivot(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=0,trials=1000):
     #setup test stat
     ll1,grad1,hess1,params1,ll2,grad2,hess2,params2
     nobs = ll1.shape[0]
@@ -148,6 +147,7 @@ def bootstrap_test_pivot(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=0,tri
     #set up confidence intervals
     cv_lower = 2*test_stat - np.percentile(test_stats, 97.5, axis=0)
     cv_upper = 2*test_stat -  np.percentile(test_stats, 2.5, axis=0)
+    #print(cv_lower,cv_upper,2*(0 >= cv_upper) + 1*(0 <= cv_lower))
 
     return  2*(0 >= cv_upper) + 1*(0 <= cv_lower)
 
@@ -301,7 +301,8 @@ def monte_carlo(total,gen_data,setup_shi,trials=500):
         boot_index1 = bootstrap_test_pivot(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=cstar,trials=trials)
         boot_index2 = bootstrap_test_pt(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=cstar,trials=trials)
         boot_index3 = bootstrap_bc(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=cstar,trials=trials)
-            
+        #print('test:%s,cstar:%s,se:%s'% (llrn,cstar,np.sqrt(nobs)*omegan),boot_index1,reg_index) 
+
         #update the test results
         reg[reg_index] = reg[reg_index] + 1
         boot1[boot_index1] = boot1[boot_index1] + 1

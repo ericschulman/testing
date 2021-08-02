@@ -16,6 +16,34 @@ def regular_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2):
     return 1*(test_stat >= 1.96) + 2*( test_stat <= -1.96)
 
 
+def compute_eigen2(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2):
+    
+    n = ll1.shape[0]
+    hess1 = hess1/n
+    hess2 = hess2/n
+
+    k1 = params1.shape[0]
+    k2 = params2.shape[0]
+    k = k1 + k2
+    
+    #A_hat:
+    A_hat1 = np.concatenate([hess1,np.zeros((k2,k1))])
+    A_hat2 = np.concatenate([np.zeros((k1,k2)),-1*hess2])
+    A_hat = np.concatenate([A_hat1,A_hat2],axis=1)
+
+    #B_hat, covariance of the score...
+    B_hat =  np.concatenate([grad1,-grad2],axis=1) #might be a mistake here..
+    B_hat = np.cov(B_hat.transpose())
+
+    #compute eigenvalues for weighted chisq
+    sqrt_B_hat= linalg.sqrtm(B_hat)
+    W_hat = np.matmul(sqrt_B_hat,linalg.inv(A_hat))
+    W_hat = np.matmul(W_hat,sqrt_B_hat)
+    V,W = np.linalg.eig(W_hat)
+
+    return V
+
+
 ######################################################################################################
 ######################################################################################################
 ######################################################################################################
@@ -97,8 +125,8 @@ def ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,alpha=.05,nsims=1000
 
 
 def bootstrap_distr_eic(yn,xn,nobs,model1,model2,setup_shi,trials=100):
-    test_stats_eic = []
-    test_stats= []
+    test_stats = []
+    variance_stats = []
 
     for i in range(trials):
         np.random.seed()
@@ -113,15 +141,33 @@ def bootstrap_distr_eic(yn,xn,nobs,model1,model2,setup_shi,trials=100):
 
 
 
+def bootstrap_distr(yn,xn,nobs,model1,model2,setup_shi,trials=100):
+    test_stats= []
+    ll1,grad1,hess1,params1,model1,ll2,grad2,hess2,params2,model2 = setup_shi(yn,xn,return_model=True)
+    V = compute_eigen2(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
+    
+    for i in range(trials):
+        np.random.seed()
+        sample  = np.random.choice(np.arange(0,nobs),nobs,replace=True)
+        ys,xs = yn[sample],xn[sample]
+        ll1b,grad1b,hess1b,params1b,ll2b,grad2b,hess2b,params2b  = setup_shi(ys,xs)
+        omegab = np.sqrt( (ll1b -ll2b).var())
+        llrb = (ll1b - ll2b).sum() + V.sum()/(2) #fix the test...
+        test_statb = llrb/(omegab*np.sqrt(nobs))
+        test_stats.append(test_statb)
+    return np.array(test_stats)
+
+
 def bootstrap_test(test_stats):
     cv_upper = np.percentile(test_stats, 97.5, axis=0)
     cv_lower = np.percentile(test_stats, 2.5, axis=0)
+
     return  2*(0 >= cv_upper) + 1*(0 <= cv_lower)
 
 
 def bootstrap_pivot(ll1,ll2,test_stats,test_stats_eic):
-    print('llr:%s, eic:%s, test_stat-mean:%s'%((ll1-ll2).sum(),test_stats_eic.mean(),test_stats.mean()))
-    print('eic-med:%s, test_stat-med:%s'%((np.percentile(test_stats_eic, 50, axis=0),np.percentile(test_stats, 50, axis=0))))
+    #print('llr:%s, eic:%s, test_stat-mean:%s'%((ll1-ll2).sum(),test_stats_eic.mean(),test_stats.mean()))
+    #print('eic-med:%s, test_stat-med:%s'%((np.percentile(test_stats_eic, 50, axis=0),np.percentile(test_stats, 50, axis=0))))
     test_stat = (ll1-ll2).sum() - (test_stats.mean() - test_stats_eic.mean())
     cv_lower = 2*test_stat - np.percentile(test_stats_eic, 97.5, axis=0)
     cv_upper = 2*test_stat -  np.percentile(test_stats_eic, 2.5, axis=0)
@@ -154,14 +200,15 @@ def monte_carlo(total,gen_data,setup_shi,trials=100):
         shi_index = ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
 
         #update test results
-        print(ll1.sum())
-        print(ll2.sum())
-        print('-------')
-        test_stats,test_stats_eic = bootstrap_distr_eic(yn,xn,nobs,model1,model2,setup_shi,trials=trials)
+        #print(ll1.sum())
+        #print(ll2.sum())
+        #print('-------')
+
+        test_stats = bootstrap_distr(yn,xn,nobs,model1,model2,setup_shi,trials=trials)
 
         #run the bootstrap test test...
-        boot_index1 = bootstrap_test(test_stats_eic)
-        boot_index2 = bootstrap_pivot(ll1,ll2,test_stats,test_stats_eic)
+        boot_index1 = bootstrap_test(test_stats)
+        boot_index2 = boot_index1
         
         #update test results...
         reg[reg_index] = reg[reg_index] + 1        

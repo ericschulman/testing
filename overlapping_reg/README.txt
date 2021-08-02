@@ -1,0 +1,12 @@
+overlap_shi_ex_pt_slow.ipynb
+- main examples from paper, main reason slow is because i do analytical log likelihood... maybe to a version with correct guess?
+- uses test v3, v3 does not actually re estimate the models in the bootstrap samples to save time.
+
+1v1 
+- trying to guage 1v1 regressor what happens...
+
+shi_examples_summer_1
+- same as overlap_shi_ex_pt.ipynb. updates include v5 test. v5 test includes bias correction on regular test. 
+
+shi_examples_summer_2
+- same as overlap_shi_ex_pt_slow.ipynb. updates include v5 test. v5 test includes bias correction on regular test. 
