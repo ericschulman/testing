@@ -278,8 +278,6 @@ def plot_bootstrap2(yn,xn,nobs,setup_shi,trials=500,c=0):
         ####messing around with recentering########
         
         V = compute_eigen2(ll1,grad1,hess1,k1,ll2, grad2,hess2,k2)
-
-        
         ###################
 
         #llr = (ll1 - ll2).sum() +V_nmlzd.sum()/2
@@ -290,3 +288,45 @@ def plot_bootstrap2(yn,xn,nobs,setup_shi,trials=500,c=0):
 
     plt.hist( test_stats, density=True,bins=15, label="Bootstrap",alpha=.75)
     return test_stats
+
+
+##################################
+################## ploting the k-stats
+###################################
+
+def plot_kstats_table(gen_data,setup_shi,figtitle=''):
+    """make a table with the kstats"""
+    
+    #first make a figure...
+    #true_stats = plot_true2(gen_data,setup_shi,trials=500)
+    yn,xn,nobs = gen_data()
+    anayltic_stats = plot_analytic2(yn,xn,nobs,setup_shi)
+    bootstrap_stats = plot_bootstrap_pt(yn,xn,nobs,setup_shi,trials=1000)
+    
+    plt.legend()
+    #then save it potentially
+    if figtitle != '':
+        plt.savefig(figtitle)
+    overlap,normal = anayltic_stats
+    plt.show()
+    
+        
+    distr_list = [overlap,normal,bootstrap_stats]
+    distr_list_names = ['Overlapping','Normal','Bootstrap']
+    n_kstats = 4
+    
+    moments = np.zeros((len(distr_list),n_kstats ))
+    kstats =  np.zeros((len(distr_list),n_kstats ))
+
+    #print moments/kstats
+    for i in range(len(distr_list)):
+        for j in range(n_kstats): #true_stats  
+            print(i,j)
+            m, k = stats.moment(distr_list[i], j+1), stats.kstat(distr_list[i], j+1)
+            moments[i,j] = m
+            kstats[i,j] = k
+    print(moments)
+    print(kstats)
+    print('\\begin{center}\n\\begin{tabular}{ccccc}\n\\toprule')
+    print('\\textbf{Version} & \\textbf{Result} & \\textbf{90 \\% CI} & \\textbf{95 \\% CI} & \\textbf{99 \\% CI} \\\\ \\midrule' )
+    print('\\bottomrule\n\\end{tabular}\n\\end{center}')
