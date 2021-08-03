@@ -195,7 +195,7 @@ def plot_true2(gen_data,setup_shi,trials=500):
 
 def plot_analytic2(yn,xn,nobs,setup_shi):
     overlap,normal =  compute_analytic(yn,xn,setup_shi)
-    plt.hist(overlap,density=True,bins=15,alpha=.75,label="Overlapping")
+    plt.hist( overlap[(overlap>=-10)],density=True,bins=15,alpha=.75,label="Overlapping")
     plt.hist(normal,density=True,bins=15,alpha=.75,label="Normal")
     return overlap,normal
 
