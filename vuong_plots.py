@@ -170,21 +170,33 @@ def plot_bootstrap(yn,xn,nobs,setup_shi):
 ############################  actual test stat ########################
 
 def plot_true2(gen_data,setup_shi,trials=500):
-    true_stats = []
+    test_stats = []
+    variance_stats  = []
+
     for i in range(trials):
         np.random.seed()
         ys,xs,nobs = gen_data()
-        nobs = ys.shape[0]
-        ll1,grad1,hess1,params1,ll2,grad2,hess2,params2 = setup_shi(ys,xs)
-        V =  compute_eigen2(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
-        llr = (ll1 - ll2).sum() #+ V.sum()/2
-        omega2 = (ll1 - ll2).var()
-        true_stats.append(llr/(np.sqrt(omega2*nobs)))
+        ll1,grad1,hess1,k1,ll2, grad2,hess2,k2 = setup_shi(ys,xs)
+        
+        ####messing around with recentering########
+        
+        V = compute_eigen2(ll1,grad1,hess1,k1,ll2, grad2,hess2,k2)
+        ###################
 
-    true_stats= np.array(true_stats)
-    true_stats = true_stats - true_stats.mean()
-    plt.hist( true_stats, density=True,bins=15, label="True",alpha=.60)
-    return true_stats
+        #llr = (ll1 - ll2).sum() +V_nmlzd.sum()/2
+        llr = (ll1 - ll2).sum() +V.sum()/(2)
+        omega2 = (ll1 - ll2).var() 
+        test_stats.append(llr)
+        variance_stats.append((np.sqrt(omega2*nobs)))
+        
+    test_stats = np.array(test_stats)
+    test_stats = test_stats - test_stats.mean()
+    varianc_stats = np.clip(variance_stats,.1,10000)
+    result_stats = test_stats/variance_stats
+    result_stats = result_stats[np.abs(result_stats) <= 4] #remove for plots..
+    plt.hist(result_stats, density=True,bins=15, label="Bootstrap",alpha=.60)
+    return result_stats
+
 
 def plot_analytic2(yn,xn,nobs,setup_shi):
     overlap,normal =  compute_analytic(yn,xn,setup_shi)
@@ -296,6 +308,7 @@ def plot_bootstrap2(yn,xn,nobs,setup_shi,trials=500,c=0):
         
     test_stats = np.array(test_stats)
     test_stats = test_stats - test_stats.mean()
+    varianc_stats = np.clip(variance_stats,.1,10000)
     result_stats = test_stats/variance_stats
     result_stats = result_stats[np.abs(result_stats) <= 4] #remove for plots..
     plt.hist(result_stats, density=True,bins=15, label="Bootstrap",alpha=.60)
@@ -310,7 +323,7 @@ def plot_kstats_table(gen_data,setup_shi,figtitle=''):
     """make a table with the kstats"""
 
     #first make a figure...
-    true_stats =  plot_true2(gen_data,setup_shi,trials=500)
+    true_stats =  plot_true2(gen_data,setup_shi,trials=1000)
 
     yn,xn,nobs = gen_data()
     analytic_stats = plot_analytic2(yn,xn,nobs,setup_shi)
