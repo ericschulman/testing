@@ -13,14 +13,15 @@ shi_examples_summer_2
 
 kstat_table
 - code to get the tables with the k-stats working
-
-edgeworth_summer_2
 - actual examples
-- k = 9, 100, 250, 500 obs
-- k = 4?
-- k = 15?
-- a = 0, 100, 250, 500 obs
+shi's examples:
+a = 0 , k = 4, 9 ,19 - for some reasons
+a = .25, k = 4, 9, 19 
 
+
+kstat_table_2
+- example with an actual overlapping regressor + spurious regressors?
+- similar to edgeworth_reg2_pt?
 
 
 edgeworth_shi_pt 

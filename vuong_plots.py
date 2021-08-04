@@ -39,39 +39,31 @@ def compute_eigen(yn,xn,setup_shi):
 
 
 def compute_eigen2(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2):
-    nobs = len(ll1)
+    
+    n = ll1.shape[0]
+    hess1 = hess1/n
+    hess2 = hess2/n
 
-    hess1 = hess1/nobs
-    hess2 = hess2/nobs
-
-    k1,k2 = params1.shape[0],params2.shape[0]
+    k1 = params1.shape[0]
+    k2 = params2.shape[0]
     k = k1 + k2
     
     #A_hat:
     A_hat1 = np.concatenate([hess1,np.zeros((k2,k1))])
-    A_hat2 = np.concatenate([np.zeros((k1,k2)),hess2])
+    A_hat2 = np.concatenate([np.zeros((k1,k2)),-1*hess2])
     A_hat = np.concatenate([A_hat1,A_hat2],axis=1)
-    Q_hat = np.concatenate([A_hat1,-1*A_hat2],axis=1)
 
     #B_hat, covariance of the score...
-    B_hat = np.concatenate([grad1,-1*grad2],axis=1) 
-    B_hat = np.cov(B_hat,rowvar=False)
+    B_hat =  np.concatenate([grad1,-grad2],axis=1) #might be a mistake here..
+    B_hat = np.cov(B_hat.transpose())
 
     #compute eigenvalues for weighted chisq
     sqrt_B_hat= linalg.sqrtm(B_hat)
-    W_hat = np.matmul(sqrt_B_hat,linalg.inv(Q_hat))
+    W_hat = np.matmul(sqrt_B_hat,linalg.inv(A_hat))
     W_hat = np.matmul(W_hat,sqrt_B_hat)
-    #print(W_hat)
     V,W = np.linalg.eig(W_hat)
 
-
-    #try another way to make sure I understand
-    S_hat = linalg.inv(A_hat).dot(B_hat).dot( linalg.inv(A_hat))
-    #print(S_hat)
-    #print(Q_hat.dot(S_hat))
-    #print(np.linalg.eig(Q_hat.dot(S_hat))[0].sum()/2)
-
-    return V.astype(float)
+    return V
 
 
 
@@ -146,7 +138,7 @@ def plot_true(gen_data,setup_shi):
         true_stats.append(2*llr)
 
     true_stats= np.array(true_stats)
-    plt.hist( true_stats , density=True,bins=15, label="True",alpha=.75)
+    plt.hist( true_stats , density=True,bins=15, label="True",alpha=.60)
     return true_stats
 
 
@@ -156,7 +148,7 @@ def plot_analytic(yn,xn,nobs,setup_shi):
     eigs_tile = np.tile(model_eigs,n_sims).reshape(n_sims,len(model_eigs))
     normal_draws = stats.norm.rvs(size=(n_sims,len(model_eigs)))
     weighted_chi = ((normal_draws**2)*eigs_tile).sum(axis=1)
-    plt.hist(weighted_chi,density=True,bins=15,alpha=.75,label="Analytic")
+    plt.hist(weighted_chi,density=True,bins=15,alpha=.60,label="Analytic")
     return weighted_chi
 
 
@@ -172,7 +164,7 @@ def plot_bootstrap(yn,xn,nobs,setup_shi):
         llr = (ll1 - ll2).sum()
         test_stats.append(2*llr)
     
-    plt.hist( test_stats, density=True,bins=15, label="Bootstrap",alpha=.75)
+    plt.hist( test_stats, density=True,bins=15, label="Bootstrap",alpha=.60)
     return test_stats
 
 ############################  actual test stat ########################
@@ -183,26 +175,30 @@ def plot_true2(gen_data,setup_shi,trials=500):
         np.random.seed()
         ys,xs,nobs = gen_data()
         nobs = ys.shape[0]
-        ll1,grad1,hess1,k1,ll2, grad2,hess2,k2 = setup_shi(ys,xs)
-        llr = (ll1 - ll2).sum()
+        ll1,grad1,hess1,params1,ll2,grad2,hess2,params2 = setup_shi(ys,xs)
+        V =  compute_eigen2(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
+        llr = (ll1 - ll2).sum() #+ V.sum()/2
         omega2 = (ll1 - ll2).var()
         true_stats.append(llr/(np.sqrt(omega2*nobs)))
 
     true_stats= np.array(true_stats)
     true_stats = true_stats - true_stats.mean()
-    plt.hist( true_stats, density=True,bins=15, label="True",alpha=.75)
+    plt.hist( true_stats, density=True,bins=15, label="True",alpha=.60)
     return true_stats
 
 def plot_analytic2(yn,xn,nobs,setup_shi):
     overlap,normal =  compute_analytic(yn,xn,setup_shi)
-    plt.hist( overlap[(overlap>=-10)],density=True,bins=15,alpha=.75,label="Overlapping")
-    plt.hist(normal,density=True,bins=15,alpha=.75,label="Normal")
+    plt.hist(normal,density=True,bins=15,alpha=.60,label="Normal")
+    plt.hist( overlap[(overlap>=-10)],density=True,bins=15,alpha=.60,label="Overlapping")
     return overlap,normal
 
 ###################################
 
-def plot_bootstrap_pt(yn,xn,nobs,setup_shi,trials=500,c=0):
-    ll1,grad1,hess1,k1,ll2,grad2,hess2,k2 = setup_shi(yn,xn)
+def plot_bootstrap_pt(yn,xn,nobs,setup_shi,trials=1000,c=0):
+    """final bootstrap that i ended up using 
+    this one is fast... """
+    ll1,grad1,hess1,params1,ll2,grad2,hess2,params2 = setup_shi(yn,xn)
+    
     test_stats = []
     variance_stats = []
     llr = ll1-ll2
@@ -213,25 +209,32 @@ def plot_bootstrap_pt(yn,xn,nobs,setup_shi,trials=500,c=0):
         llrs = llr[sample]
         test_stats.append( llrs.sum() )
         variance_stats.append( llrs.var() )
-    
-    #final product
-    V = compute_eigen2(ll1,grad1,hess1,k1,ll2,grad2,hess2,k2)
-    test_stats = np.array(test_stats)
-    test_stats  = test_stats - test_stats.mean()
-    variance_stats = np.sqrt(variance_stats)*np.sqrt(nobs)
 
-    plt.hist( test_stats/variance_stats, density=True,bins=15, label="Bootstrap",alpha=.75)
+    #final product, bootstrap
+    V =  compute_eigen2(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
+    test_stats = np.array(test_stats ) #
+    test_stats = test_stats -test_stats.mean() #+ V.sum()/2  # recenter... makes figures easier
+    variance_stats = np.sqrt(np.array(variance_stats)*nobs)
+
+    plt.hist( test_stats/variance_stats, density=True,bins=15, label="Bootstrap",alpha=.60)
     return test_stats/variance_stats
 
 
 def plot_bootstrap_recenter(yn,xn,nobs,setup_shi,trials=500,c=0):
+    """do the recentering using a different formula"""
+    
+    #TODO: This was close, but not quite right... 
+    #changes made on 8/4/21
+
+
     test_stats = []
+    variance_stats = []
     
     ############ messing around with recentering ###################
-    ll1,grad1,hess1,ll2,theta1, grad2,hess2,theta2 = setup_shi(yn,xn)
+    ll1,grad1,hess1,theta1,ll2, grad2,hess2,theta2 = setup_shi(yn,xn)
     #need true "parameters" ...
     #######################################
-    b = 0
+
     for i in range(trials):
         np.random.seed()
         sample  = np.random.choice(np.arange(0,nobs),nobs,replace=True)
@@ -247,26 +250,31 @@ def plot_bootstrap_recenter(yn,xn,nobs,setup_shi,trials=500,c=0):
         b2 = np.dot(theta_diff2,-1*hess2b/nobs)
         b2 = np.dot(b2,theta_diff2.transpose())
 
-        b = b + nobs/2*(b1 -b2)
         ###################
         
         llrb = (ll1b - ll2b ).sum()
-        llrb =  llrb - nobs/2*(b1 - b2)[0,0]
-  
         omega2b = (ll1b - ll2b).var()
-        test_stats.append(llrb)
+        test_stats.append(llrb - nobs/2*(b1 - b2)[0,0])
+        variance_stats.append( np.clip(omega2b,.05,1000) )
+
         
-    print(b/trials, np.array(ll1-ll2).sum() )
+    #print(b/trials, np.array(ll1-ll2).sum() )
     test_stats = np.array(test_stats)
-    plt.hist( test_stats/test_stats.std(), density=True,bins=15, label="Bootstrap",alpha=.75)
+    test_stats  = test_stats - test_stats.mean()
+    variance_stats = np.array(variance_stats)
+    variance_stats = np.sqrt(nobs*variance_stats)
+    print((test_stats/variance_stats).max())
+    print(variance_stats.min())
+    plt.hist( test_stats/variance_stats, density=True,bins=15, label="Bootstrap",alpha=.60)
     return test_stats
 
 
 
 
 def plot_bootstrap2(yn,xn,nobs,setup_shi,trials=500,c=0):
+    """actually do the estimation on each iteration"""
     test_stats = []
-    
+    variance_stats  = []
 
     for i in range(trials):
         subn = nobs
@@ -282,12 +290,16 @@ def plot_bootstrap2(yn,xn,nobs,setup_shi,trials=500,c=0):
 
         #llr = (ll1 - ll2).sum() +V_nmlzd.sum()/2
         llr = (ll1 - ll2).sum() +V.sum()/(2)
-        omega2 = (ll1 - ll2).var() + c*V.sum()/(nobs)
-        test_stats.append(llr/(np.sqrt(omega2*nobs)))
+        omega2 = (ll1 - ll2).var() 
+        test_stats.append(llr)
+        variance_stats.append((np.sqrt(omega2*nobs)))
         
-
-    plt.hist( test_stats, density=True,bins=15, label="Bootstrap",alpha=.75)
-    return test_stats
+    test_stats = np.array(test_stats)
+    test_stats = test_stats - test_stats.mean()
+    result_stats = test_stats/variance_stats
+    result_stats = result_stats[np.abs(result_stats) <= 4] #remove for plots..
+    plt.hist(result_stats, density=True,bins=15, label="Bootstrap",alpha=.60)
+    return result_stats
 
 
 ##################################
@@ -296,23 +308,27 @@ def plot_bootstrap2(yn,xn,nobs,setup_shi,trials=500,c=0):
 
 def plot_kstats_table(gen_data,setup_shi,figtitle=''):
     """make a table with the kstats"""
-    
+
     #first make a figure...
-    true_stats = plot_true2(gen_data,setup_shi,trials=500)
+    true_stats =  plot_true2(gen_data,setup_shi,trials=500)
+
     yn,xn,nobs = gen_data()
-    anayltic_stats = plot_analytic2(yn,xn,nobs,setup_shi)
-    bootstrap_stats = plot_bootstrap_pt(yn,xn,nobs,setup_shi,trials=1000)
-    
+    analytic_stats = plot_analytic2(yn,xn,nobs,setup_shi)
+    #bootstrap_stats = plot_bootstrap_pt(yn,xn,nobs,setup_shi,trials=1000)
+    #bootstrap_stats = plot_bootstrap_recenter(yn,xn,nobs,setup_shi,trials=500)
+    bootstrap_stats = plot_bootstrap2(yn,xn,nobs,setup_shi,trials=1000)
+
     plt.legend()
     #then save it potentially
     if figtitle != '':
+        print(figtitle)
         plt.savefig(figtitle)
-    overlap,normal = anayltic_stats
+    overlap,normal = analytic_stats
     plt.show()
     
         
-    distr_list = [true_stats, overlap,normal,bootstrap_stats]
-    distr_list_names = ['True','Overlapping','Normal','Bootstrap']
+    distr_list = [true_stats, bootstrap_stats,normal,overlap]
+    distr_list_names = ['True','Bootstrap','Normal','Overlapping']
     n_kstats = 4
     
     moments = np.zeros((len(distr_list),n_kstats ))
