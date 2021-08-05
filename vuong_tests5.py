@@ -87,7 +87,7 @@ def bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=0,trials=5
     V =  compute_eigen2(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
     test_stats = np.array(test_stats+ V.sum()/(2))
     variance_stats = np.sqrt(np.array(variance_stats)*nobs + c*(V*V).sum())
-
+    variance_stats = np.clip(variance_stats,.1,100000) #this seems to help things... issues at 0...
     #set up test stat   
     omega = np.sqrt((ll1 - ll2).var()*nobs + c*(V*V).sum())
     llr = (ll1 - ll2).sum() +V.sum()/(2)

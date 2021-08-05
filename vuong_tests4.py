@@ -142,20 +142,32 @@ def bootstrap_distr_eic(yn,xn,nobs,model1,model2,setup_shi,trials=100):
 
 
 def bootstrap_distr(yn,xn,nobs,model1,model2,setup_shi,trials=100):
-    test_stats= []
-    ll1,grad1,hess1,params1,model1,ll2,grad2,hess2,params2,model2 = setup_shi(yn,xn,return_model=True)
-    V = compute_eigen2(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
-    
+    test_stats = []
+    variance_stats  = []
+
     for i in range(trials):
+        subn = nobs
         np.random.seed()
-        sample  = np.random.choice(np.arange(0,nobs),nobs,replace=True)
+        sample  = np.random.choice(np.arange(0,nobs),subn,replace=True)
         ys,xs = yn[sample],xn[sample]
-        ll1b,grad1b,hess1b,params1b,ll2b,grad2b,hess2b,params2b  = setup_shi(ys,xs)
-        omegab = np.sqrt( (ll1b -ll2b).var())
-        llrb = (ll1b - ll2b).sum() + V.sum()/(2) #fix the test...
-        test_statb = llrb/(omegab*np.sqrt(nobs))
-        test_stats.append(test_statb)
-    return np.array(test_stats)
+        ll1,grad1,hess1,k1,ll2, grad2,hess2,k2 = setup_shi(ys,xs)
+        
+        ####messing around with recentering########
+        
+        V = compute_eigen2(ll1,grad1,hess1,k1,ll2, grad2,hess2,k2)
+        ###################
+
+        #llr = (ll1 - ll2).sum() +V_nmlzd.sum()/2
+        llr = (ll1 - ll2).sum() +V.sum()/(2)
+        omega2 = (ll1 - ll2).var() 
+        test_stats.append(llr)
+        variance_stats.append((np.sqrt(omega2*nobs)))
+        
+    test_stats = np.array(test_stats)
+    test_stats = test_stats - test_stats.mean()
+    varianc_stats = np.clip(variance_stats,.1,10000)
+    result_stats = test_stats/variance_stats
+    return result_stats
 
 
 def bootstrap_test(test_stats):
