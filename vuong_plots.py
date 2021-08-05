@@ -193,7 +193,7 @@ def plot_true2(gen_data,setup_shi,trials=500):
     test_stats = test_stats - test_stats.mean()
     varianc_stats = np.clip(variance_stats,.1,10000)
     result_stats = test_stats/variance_stats
-    result_stats = result_stats[np.abs(result_stats) <= 4] #remove for plots..
+    result_stats = result_stats[np.abs(result_stats) <= 8] #remove for plots..
     plt.hist(result_stats, density=True,bins=15, label="Bootstrap",alpha=.60)
     return result_stats
 
@@ -201,8 +201,8 @@ def plot_true2(gen_data,setup_shi,trials=500):
 def plot_analytic2(yn,xn,nobs,setup_shi):
     overlap,normal =  compute_analytic(yn,xn,setup_shi)
     plt.hist(normal,density=True,bins=15,alpha=.60,label="Normal")
-    plt.hist( overlap[(overlap>=-10)],density=True,bins=15,alpha=.60,label="Overlapping")
-    return overlap,normal
+    plt.hist( overlap[np.abs(overlap) <= 8],density=True,bins=15,alpha=.60,label="Overlapping")
+    return overlap[np.abs(overlap) <= 8],normal
 
 ###################################
 
@@ -232,57 +232,6 @@ def plot_bootstrap_pt(yn,xn,nobs,setup_shi,trials=1000,c=0):
     return test_stats/variance_stats
 
 
-def plot_bootstrap_recenter(yn,xn,nobs,setup_shi,trials=500,c=0):
-    """do the recentering using a different formula"""
-    
-    #TODO: This was close, but not quite right... 
-    #changes made on 8/4/21
-
-
-    test_stats = []
-    variance_stats = []
-    
-    ############ messing around with recentering ###################
-    ll1,grad1,hess1,theta1,ll2, grad2,hess2,theta2 = setup_shi(yn,xn)
-    #need true "parameters" ...
-    #######################################
-
-    for i in range(trials):
-        np.random.seed()
-        sample  = np.random.choice(np.arange(0,nobs),nobs,replace=True)
-        ys,xs = yn[sample],xn[sample]
-        ll1b,grad1b,hess1b,theta1b,ll2b, grad2b,hess2b,theta2b  = setup_shi(ys,xs)
-        
-        ####messing around with recentering########
-        theta_diff1 =  np.array([(theta1 - theta1b)])
-        b1 = np.dot(theta_diff1,-1*hess1b/nobs)
-        b1 = np.dot(b1,theta_diff1.transpose())
-
-        theta_diff2 =  np.array([(theta2 - theta2b)])
-        b2 = np.dot(theta_diff2,-1*hess2b/nobs)
-        b2 = np.dot(b2,theta_diff2.transpose())
-
-        ###################
-        
-        llrb = (ll1b - ll2b ).sum()
-        omega2b = (ll1b - ll2b).var()
-        test_stats.append(llrb - nobs/2*(b1 - b2)[0,0])
-        variance_stats.append( np.clip(omega2b,.05,1000) )
-
-        
-    #print(b/trials, np.array(ll1-ll2).sum() )
-    test_stats = np.array(test_stats)
-    test_stats  = test_stats - test_stats.mean()
-    variance_stats = np.array(variance_stats)
-    variance_stats = np.sqrt(nobs*variance_stats)
-    print((test_stats/variance_stats).max())
-    print(variance_stats.min())
-    plt.hist( test_stats/variance_stats, density=True,bins=15, label="Bootstrap",alpha=.60)
-    return test_stats
-
-
-
-
 def plot_bootstrap2(yn,xn,nobs,setup_shi,trials=500,c=0):
     """actually do the estimation on each iteration"""
     test_stats = []
@@ -310,7 +259,7 @@ def plot_bootstrap2(yn,xn,nobs,setup_shi,trials=500,c=0):
     test_stats = test_stats - test_stats.mean()
     varianc_stats = np.clip(variance_stats,.1,10000)
     result_stats = test_stats/variance_stats
-    result_stats = result_stats[np.abs(result_stats) <= 4] #remove for plots..
+    result_stats = result_stats[np.abs(result_stats) <= 8] #remove for plots..
     plt.hist(result_stats, density=True,bins=15, label="Bootstrap",alpha=.60)
     return result_stats
 
@@ -328,7 +277,6 @@ def plot_kstats_table(gen_data,setup_shi,figtitle=''):
     yn,xn,nobs = gen_data()
     analytic_stats = plot_analytic2(yn,xn,nobs,setup_shi)
     #bootstrap_stats = plot_bootstrap_pt(yn,xn,nobs,setup_shi,trials=1000)
-    #bootstrap_stats = plot_bootstrap_recenter(yn,xn,nobs,setup_shi,trials=500)
     bootstrap_stats = plot_bootstrap2(yn,xn,nobs,setup_shi,trials=1000)
 
     plt.legend()
