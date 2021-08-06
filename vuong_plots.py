@@ -276,7 +276,6 @@ def plot_kstats_table(gen_data,setup_shi,figtitle=''):
 
     yn,xn,nobs = gen_data()
     analytic_stats = plot_analytic2(yn,xn,nobs,setup_shi)
-    #bootstrap_stats = plot_bootstrap_pt(yn,xn,nobs,setup_shi,trials=1000)
     bootstrap_stats = plot_bootstrap2(yn,xn,nobs,setup_shi,trials=1000)
 
     plt.legend()
