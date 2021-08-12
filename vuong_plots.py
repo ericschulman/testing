@@ -191,10 +191,10 @@ def plot_true2(gen_data,setup_shi,trials=500):
         
     test_stats = np.array(test_stats)
     test_stats = test_stats - test_stats.mean()
-    varianc_stats = np.clip(variance_stats,.1,10000)
+    variance_stats = np.clip(variance_stats,.1,10000)
     result_stats = test_stats/variance_stats
     result_stats = result_stats[np.abs(result_stats) <= 8] #remove for plots..
-    plt.hist(result_stats, density=True,bins=15, label="Bootstrap",alpha=.60)
+    plt.hist(result_stats, density=True,bins=15, label="True",alpha=.60)
     return result_stats
 
 
@@ -249,7 +249,6 @@ def plot_bootstrap2(yn,xn,nobs,setup_shi,trials=500,c=0):
         V = compute_eigen2(ll1,grad1,hess1,k1,ll2, grad2,hess2,k2)
         ###################
 
-        #llr = (ll1 - ll2).sum() +V_nmlzd.sum()/2
         llr = (ll1 - ll2).sum() +V.sum()/(2)
         omega2 = (ll1 - ll2).var() 
         test_stats.append(llr)
@@ -257,7 +256,7 @@ def plot_bootstrap2(yn,xn,nobs,setup_shi,trials=500,c=0):
         
     test_stats = np.array(test_stats)
     test_stats = test_stats - test_stats.mean()
-    varianc_stats = np.clip(variance_stats,.1,10000)
+    variance_stats = np.clip(variance_stats,.1,10000)
     result_stats = test_stats/variance_stats
     result_stats = result_stats[np.abs(result_stats) <= 8] #remove for plots..
     plt.hist(result_stats, density=True,bins=15, label="Bootstrap",alpha=.60)
