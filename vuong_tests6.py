@@ -6,14 +6,8 @@ import matplotlib.pyplot as plt
 
 from scipy.optimize import minimize
 from scipy.stats import norm
-
-def regular_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2):
-    llr = (ll1 - ll2).sum()
-    nobs = ll1.shape[0]
-    omega = np.sqrt( (ll1 -ll2).var())
-    test_stat = llr/(omega*np.sqrt(nobs))
-    return 1*(test_stat >= 1.96) + 2*( test_stat <= -1.96)
-
+# This one, has the correct normal test...
+#total is number of runs, trials is bootstrap replications...
 
 def compute_eigen2(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2):
     
@@ -41,6 +35,108 @@ def compute_eigen2(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2):
     V,W = np.linalg.eig(W_hat)
 
     return V
+
+
+def regular_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,trials=500,biascorrect=False):
+    nobs = ll1.shape[0]
+    omega = np.sqrt((ll1 -ll2).var())
+    V =  compute_eigen2(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
+    llr = (ll1 - ll2).sum()
+    if biascorrect:
+        llr = llr + V.sum()/(2) #fix the test...
+    test_stat = llr/(omega*np.sqrt(nobs))
+    #print('regular',test_stat,omega)
+    return 1*(test_stat >= 1.96) + 2*( test_stat <= -1.96)
+
+
+######################## 2 step
+
+def compute_stage1(ll1,grad1,hess1,params1,ll2, grad2,hess2,params2):
+    nsims = 5000
+    
+    k1 = params1.shape[0]
+    k2 = params2.shape[0]
+    k = k1 + k2
+    
+    V = compute_eigen2(ll1,grad1,hess1,params1,ll2, grad2,hess2,params2)
+    np.random.seed()
+    Z0 = np.random.normal( size=(nsims,k) )**2
+    
+    return np.matmul(Z0,V*V)
+    
+
+def two_step_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,biascorrect=False):
+    stage1_distr = compute_stage1(ll1,grad1,hess1,params1,ll2, grad2,hess2,params2)
+    nobs = ll1.shape[0]
+    
+    omega = np.sqrt( (ll1 -ll2).var()) #set up stuff
+    V =  compute_eigen2(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
+    llr = (ll1 - ll2).sum()
+    if biascorrect:
+        llr = llr + V.sum()/(2) #fix the test...
+    test_stat = llr/(omega*np.sqrt(nobs))
+    stage1_res = ( nobs*omega**2 >= np.percentile(stage1_distr, 95, axis=0) )
+    #print('twostep',test_stat,omega,np.percentile(stage1_distr, 95, axis=0),stage1_res)
+    #print('----')
+    return (1*(test_stat >= 1.96) + 2*( test_stat <= -1.96))*stage1_res
+    
+    
+
+##############################
+
+
+def choose_c(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,trials=500):
+    
+    #set up stuff
+    V =  compute_eigen2(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
+    nobs = ll1.shape[0]
+    
+    #set c so the variance of the test stats is about omega?
+    cstars = np.arange(0,16,2)
+    cstars = 2**cstars 
+    omegas = nobs*(ll1 - ll2).var() + cstars*(V*V).sum()
+    cstar_results =  (omegas - nobs)**2
+    c = cstars[cstar_results.argmin()]
+    
+    # return the cstar that makes omega =2?
+    return c
+
+
+def bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=0,trials=500):
+    nobs = ll1.shape[0]
+
+    llr = ll1 -ll2
+    test_stats = []
+    bias_correct = []
+    variance_stats  = []
+     
+    for i in range(trials):
+        np.random.seed()
+        sample  = np.random.choice(np.arange(0,nobs),nobs,replace=True)
+        llrs = llr[sample]
+        test_stats.append( llrs.sum() )
+        variance_stats.append( llrs.var() )
+
+
+    #final product, bootstrap
+    V =  compute_eigen2(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
+    test_stats =  np.array(test_stats)
+    variance_stats = np.array(variance_stats)
+    test_statsnd = np.array(test_stats+ V.sum()/(2))
+    variance_statsnd = np.clip(variance_stats,.1,100000)
+
+    #set up test stat
+    return (test_stats/variance_stats,
+        test_statsnd/variance_stats, 
+        test_statsnd/variance_statsnd)
+
+
+ 
+def bootstrap_test(test_stats):
+    cv_upper = np.percentile(test_stats, 97.5, axis=0)
+    cv_lower = np.percentile(test_stats, 2.5, axis=0)
+    return  2*(0 >= cv_upper) + 1*(0 <= cv_lower)
+
 
 
 ######################################################################################################
@@ -139,84 +235,13 @@ def ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,alpha=.05,nsims=1000
     Tnd = (nLR_hat+V.sum()/2)/np.sqrt(n*nomega2_hat + cstar*(V*V).sum())
     return 1*(Tnd >= cv) + 2*(Tnd <= -cv)
 
-#######################################################################
-#######################################################################
-
-def compute_stage1(ll1,grad1,hess1,params1,ll2, grad2,hess2,params2):
-    nsims = 5000
-    
-    k1 = params1.shape[0]
-    k2 = params2.shape[0]
-    k = k1 + k2
-    
-    V = compute_eigen2(ll1,grad1,hess1,params1,ll2, grad2,hess2,params2)
-    np.random.seed()
-    Z0 = np.random.normal( size=(nsims,k) )**2
-    
-    return np.matmul(Z0,V*V)
-
-
-def two_step_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,biascorrect=False):
-    stage1_distr = compute_stage1(ll1,grad1,hess1,params1,ll2, grad2,hess2,params2)
-    nobs = ll1.shape[0]
-    
-    omega = np.sqrt( (ll1 -ll2).var())#set up stuff
-    V =  compute_eigen2(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
-    llr = (ll1 - ll2).sum()
-    if biascorrect:
-        llr = llr + V.sum()/(2) #fix the test...
-    test_stat = llr/(omega*np.sqrt(nobs))
-    stage1_res = ( nobs*omega**2 >= np.percentile(stage1_distr, 95, axis=0) )    
-    
-    return (1*(test_stat >= 1.96) + 2*( test_stat <= -1.96))*stage1_res
-    
-
-
-
 ######################################################################################################
 ######################################################################################################
 ######################################################################################################
 
-def bootstrap_distr(yn,xn,nobs,model1,model2,setup_shi,trials=100):
-    test_stats = []
-    bias_correct = []
-    variance_stats  = []
-
-    for i in range(trials):
-        subn = nobs
-        np.random.seed()
-        sample  = np.random.choice(np.arange(0,nobs),subn,replace=True)
-        ys,xs = yn[sample],xn[sample]
-        ll1,grad1,hess1,params1,model1,ll2,grad2,hess2,params2,model2 = setup_shi(ys,xs)
-        
-        ####messing around with recentering########
-        V = compute_eigen2(ll1,grad1,hess1,params1,ll2, grad2,hess2,params2)
-        bias_correct.append(V.sum()/(2))
-        ###################
-
-        llr = (ll1 - ll2).sum() 
-        omega2 = (ll1 - ll2).var()
-        test_stats.append(llr)
-        variance_stats.append((np.sqrt(omega2*nobs)))
-        
-    test_stats = np.array(test_stats)
-    bias_correct = np.array(bias_correct)
-    variance_stats= np.array(variance_stats) 
-
-    variance_statsnd = np.clip(variance_stats,.1,100000)
-    return (test_stats/variance_stats,
-            (test_stats + bias_correct)/variance_stats, 
-             (test_stats + bias_correct)/variance_statsnd)
 
 
-def bootstrap_test(test_stats):
-    cv_upper = np.percentile(test_stats, 97.5, axis=0)
-    cv_lower = np.percentile(test_stats, 2.5, axis=0)
-    return  2*(0 >= cv_upper) + 1*(0 <= cv_lower)
-
-
-def monte_carlo(total,gen_data,setup_shi,trials=100):
-
+def monte_carlo(total,gen_data,setup_shi,trials=500,biascorrect=False):
     reg = np.array([0, 0 ,0])
     twostep = np.array([0, 0 ,0])
     boot1 = np.array([0, 0 ,0])
@@ -226,30 +251,31 @@ def monte_carlo(total,gen_data,setup_shi,trials=100):
     omega = 0
     llr = 0
     var = 0
-
     for i in range(total):
         np.random.seed()
         yn,xn,nobs = gen_data()
         
         #update the llr
-        ll1,grad1,hess1,params1,model1,ll2,grad2,hess2,params2,model2 = setup_shi(yn,xn)
+        ll1,grad1,hess1,params1,ll2,grad2,hess2,params2 = setup_shi(yn,xn)
         llrn = (ll1 - ll2).sum()
         omegan = np.sqrt( (ll1 -ll2).var())
         llr = llr +llrn
         var = llrn**2 + var
         omega = omega +omegan
         
-        #shi/twosteptest....
-        reg_index = regular_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
-        twostep_index = two_step_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
+        #run the test
+        reg_index = regular_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,biascorrect=biascorrect)
+        twostep_index = two_step_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,biascorrect=biascorrect)
+        shi_index,boot_index1,boot_index2,boot_index3 = 0,0,0,0 #take worst case for now...
+        cstar = choose_c(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,trials=500)
         shi_index = ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
-        
+
         #bootstrap indexes....
-        test_stats,test_statsnd1,test_statsnd2 = bootstrap_distr(yn,xn,nobs,model1,model2,setup_shi,trials=trials)
+        test_stats,test_statsnd1,test_statsnd2 = bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=0,trials=trials)
         boot_index1 = bootstrap_test(test_stats)
         boot_index2 = bootstrap_test(test_statsnd1)
         boot_index3 = bootstrap_test(test_statsnd2)
-        
+
         #update the test results
         reg[reg_index] = reg[reg_index] + 1
         twostep[twostep_index] = twostep[twostep_index] +1
@@ -260,11 +286,8 @@ def monte_carlo(total,gen_data,setup_shi,trials=100):
 
     return reg/total,twostep/total,boot1/total,boot2/total,boot3/total,shi/total,llr/total,np.sqrt( (var/total-(llr/total)**2) ),omega*np.sqrt(nobs)/total
 
-
-
 def print_mc(mc_out):
     reg,twostep, boot1,boot2,boot3,shi, llr,std, omega = mc_out
-    print(boot1,boot2,boot3)
     print('\\begin{tabular}{|c|c|c|c|c|c|c|}')
     print('\\hline')
     print('Model &  Normal & Two-Step & Bootstrap & Bootstrap-TIC & Bootstrap-ND & Shi (2015) \\\\ \\hline \\hline')
@@ -274,4 +297,7 @@ def print_mc(mc_out):
     print('\\hline')
     print('\\end{tabular}')
 
-    print('llr:%s, std:%s'%(llr,std))
+
+
+
+

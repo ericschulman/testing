@@ -5,6 +5,12 @@ overlap_shi_ex_pt_slow.ipynb
 1v1 
 - trying to guage 1v1 regressor what happens...
 
+shi_examples_summer_1_slow
+- same as shi_examples_summer_1.ipynb. The code runs slower due to refitting model at each step...
+
+shi_examples_summer_1_fast
+- same as shi_examples_summer_1.ipynb. The code runs faster and I only fit the model 1x like vuong test 5. I demonstrate different versions of the test...
+
 shi_examples_summer_1
 - same as overlap_shi_ex_pt.ipynb. updates include v5 test. v5 test includes bias correction on regular test. 
 
