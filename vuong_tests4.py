@@ -209,9 +209,12 @@ def bootstrap_distr(yn,xn,nobs,model1,model2,setup_shi,trials=100):
              (test_stats + bias_correct)/variance_statsnd)
 
 
-def bootstrap_test(test_stats):
+def bootstrap_test(test_stats,nd=False):
     cv_upper = np.percentile(test_stats, 97.5, axis=0)
     cv_lower = np.percentile(test_stats, 2.5, axis=0)
+    if nd:
+        cv_lower = cv_lower - 10/test_stats.size
+        cv_upper = cv_upper + 10/test_stats.size
     return  2*(0 >= cv_upper) + 1*(0 <= cv_lower)
 
 
@@ -248,7 +251,7 @@ def monte_carlo(total,gen_data,setup_shi,trials=100):
         test_stats,test_statsnd1,test_statsnd2 = bootstrap_distr(yn,xn,nobs,model1,model2,setup_shi,trials=trials)
         boot_index1 = bootstrap_test(test_stats)
         boot_index2 = bootstrap_test(test_statsnd1)
-        boot_index3 = bootstrap_test(test_statsnd2)
+        boot_index3 = bootstrap_test(test_statsnd2,nd=True)
         
         #update the test results
         reg[reg_index] = reg[reg_index] + 1

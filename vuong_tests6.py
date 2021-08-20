@@ -124,7 +124,7 @@ def bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=0,trials=5
     variance_stats = np.array(variance_stats)
     test_statsnd = np.array(test_stats+ V.sum()/(2))
     variance_statsnd = np.clip(variance_stats,.1,100000)
-
+    #print(variance_statsnd.min(),variance_stats.min())
     #set up test stat
     return (test_stats/variance_stats,
         test_statsnd/variance_stats, 
@@ -132,9 +132,12 @@ def bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=0,trials=5
 
 
  
-def bootstrap_test(test_stats):
+def bootstrap_test(test_stats,nd=False):
     cv_upper = np.percentile(test_stats, 97.5, axis=0)
     cv_lower = np.percentile(test_stats, 2.5, axis=0)
+    if nd:
+        cv_lower = cv_lower - 10/test_stats.size
+        cv_upper = cv_upper + 10/test_stats.size
     return  2*(0 >= cv_upper) + 1*(0 <= cv_lower)
 
 
@@ -274,8 +277,7 @@ def monte_carlo(total,gen_data,setup_shi,trials=500,biascorrect=False):
         test_stats,test_statsnd1,test_statsnd2 = bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=0,trials=trials)
         boot_index1 = bootstrap_test(test_stats)
         boot_index2 = bootstrap_test(test_statsnd1)
-        boot_index3 = bootstrap_test(test_statsnd2)
-
+        boot_index3 = bootstrap_test(test_statsnd2,nd=True)
         #update the test results
         reg[reg_index] = reg[reg_index] + 1
         twostep[twostep_index] = twostep[twostep_index] +1
