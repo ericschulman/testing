@@ -45,7 +45,7 @@ def regular_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,trials=500,bias
     if biascorrect:
         llr = llr + V.sum()/(2) #fix the test...
     test_stat = llr/(omega*np.sqrt(nobs))
-    #print('regular',test_stat,omega)
+
     return 1*(test_stat >= 1.96) + 2*( test_stat <= -1.96)
 
 
@@ -76,8 +76,7 @@ def two_step_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,biascorrect=Fa
         llr = llr + V.sum()/(2) #fix the test...
     test_stat = llr/(omega*np.sqrt(nobs))
     stage1_res = ( nobs*omega**2 >= np.percentile(stage1_distr, 95, axis=0) )
-    #print('twostep',test_stat,omega,np.percentile(stage1_distr, 95, axis=0),stage1_res)
-    #print('----')
+
     return (1*(test_stat >= 1.96) + 2*( test_stat <= -1.96))*stage1_res
     
     
@@ -123,12 +122,22 @@ def bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=0,trials=5
     test_stats =  np.array(test_stats)
     variance_stats = np.array(variance_stats)
     test_statsnd = np.array(test_stats+ V.sum()/(2))
-    variance_statsnd = np.clip(variance_stats,.1,100000)
-    #print(variance_statsnd.min(),variance_stats.min())
-    #set up test stat
-    return (test_stats/variance_stats,
+    
+    #special situation for my test...
+    stage1_distr = compute_stage1(ll1,grad1,hess1,params1,ll2, grad2,hess2,params2)
+    cutoff = np.percentile(stage1_distr, 95, axis=0)
+    variance_statsnd = np.clip(variance_stats,cutoff ,100000)
+    #test_statsnd_var = test_statsnd.copy()
+    #test_statsnd_var[variance_stats <= cutoff] = 0
+    test_stats1,test_statsnd1,test_statsnd2 = (test_stats/variance_stats,
         test_statsnd/variance_stats, 
         test_statsnd/variance_statsnd)
+    #print(variance_stats.min(),variance_statsnd.min(),cutoff)
+    #print(np.percentile(test_statsnd,2.5),np.percentile(test_statsnd,97.5))
+    #print(np.percentile(test_statsnd1,2.5),np.percentile(test_statsnd1,97.5))
+    #print(np.percentile(test_statsnd2,2.5)-1/test_stats.size,np.percentile(test_statsnd2,97.5)+1/test_stats.size)
+    #print('------')
+    return test_stats,test_statsnd1,test_statsnd2 
 
 
  
@@ -136,9 +145,9 @@ def bootstrap_test(test_stats,nd=False):
     cv_upper = np.percentile(test_stats, 97.5, axis=0)
     cv_lower = np.percentile(test_stats, 2.5, axis=0)
     if nd:
-        cv_lower = cv_lower - 10/test_stats.size
-        cv_upper = cv_upper + 10/test_stats.size
-    return  2*(0 >= cv_upper) + 1*(0 <= cv_lower)
+        cv_lower = cv_lower - 2.5/test_stats.size
+        cv_upper = cv_upper + 2.5/test_stats.size
+    return  2*(0 > cv_upper) + 1*(0 < cv_lower)
 
 
 
