@@ -18,7 +18,8 @@ model1_fit = model1.fit()
 ll1 = model1.loglikeobs(model1_fit.params)
 grad1 =  model1.score_obs(model1_fit.params)
 hess1 = model1.hessian(model1_fit.params)
-params1 = model1_fit.params```
+params1 = model1_fit.params
+```
 
 ## Main versions of the test
 
