@@ -13,10 +13,15 @@ The main versions of the test used in the paper are in `vuong_tests4.py`. `vuong
 Each of the different tests are designed to work with `statsmodels.api`. They take the likelihood `ll1` of each model. They also involve the gradient `grad1`, hessian `hess1`, parameters `params1` of each of the models. The following pseudo-code illustrates how to get the attributes from a generic likelihood model. The test requires a user defined `setup_test` function for getting these attributes from the models. This way the code will work with user defined models outside of `statsmodels`.
 
 `model1 = your_model(y,X)`
+
 `model1_fit = model1.fit()`
+
 `ll1 = model1.loglikeobs(model1_fit.params)`
+
 `grad1 =  model1.score_obs(model1_fit.params)`    
+
 `hess1 = model1.hessian(model1_fit.params)`
+
 `params1 = model1_fit.params`
 
 ## Main versions of the test
