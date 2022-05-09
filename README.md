@@ -8,8 +8,6 @@ For a less experimental version of the selection tests see [the following reposi
 
 There are multiple versions of `vuong_tests` and `vuong_plots` in this repository. These modules contain the main code for running the test. I included the old versions so that the older examples would still be able to run.  `statsmodels` automatically compute these things with the [`GenericLikelihoodModel`](https://www.statsmodels.org/dev/dev/generated/statsmodels.base.model.GenericLikelihoodModel.html) class in [`statsmodels`](https://www.statsmodels.org/stable/index.html). .
 
-The main versions of the test used in the paper are in `vuong_tests4.py`. `vuong_tests5.py`  contains experimental code to avoid needing to compute the likelihood on each observation and other experimental bootstraps like the bias corrected bootstrap percentile interval and the bootstrap percentile-t interval (see [Hansen](https://www.ssc.wisc.edu/~bhansen/econometrics/Econometrics.pdf) chapter 10 section 10.17 and 10.18). `vuong_tests6.py` simplifies this code.
-
 Each of the different tests are designed to work with `statsmodels.api`. They take the likelihood `ll1` of each model. They also involve the gradient `grad1`, hessian `hess1`, parameters `params1` of each of the models. The following pseudo-code illustrates how to get the attributes from a generic likelihood model. The test requires a user defined `setup_test` function for getting these attributes from the models. This way the code will work with user defined models outside of `statsmodels`.
 
 ```python 
@@ -20,6 +18,8 @@ grad1 =  model1.score_obs(model1_fit.params)
 hess1 = model1.hessian(model1_fit.params)
 params1 = model1_fit.params
 ```
+
+The main versions of the test used in the paper are in `vuong_tests4.py`. `vuong_tests5.py`  contains experimental code to avoid needing to compute the likelihood on each observation and other experimental bootstraps like the bias corrected bootstrap percentile interval and the bootstrap percentile-t interval (see [Hansen](https://www.ssc.wisc.edu/~bhansen/econometrics/Econometrics.pdf) chapter 10 section 10.17 and 10.18). `vuong_tests6.py` simplifies this code.
 
 ## Main versions of the test
 
@@ -60,7 +60,7 @@ The main examples in the paper are:
 * `logit_probit` involves testing functional form assumptions in discrete choice models.
 * `log_level` tests function form assumptions in the context of whether or not to take 'log' of the y variable in a regression model.
 * `missing` tests Tobit vs OLS.
-* subsampling explores an alternative subsampling bootstrap procedure similar to the one in (Romano and Shaikh (2012))[https://projecteuclid.org/journals/annals-of-statistics/volume-40/issue-6/On-the-uniform-asymptotic-validity-of-subsampling-and-the-bootstrap/10.1214/12-AOS1051.full].
+* subsampling explores an alternative subsampling bootstrap procedure similar to the one in [Romano and Shaikh (2012)](https://projecteuclid.org/journals/annals-of-statistics/volume-40/issue-6/On-the-uniform-asymptotic-validity-of-subsampling-and-the-bootstrap/10.1214/12-AOS1051.full).
 * `nash` explores how the test might apply to different entry game models.
 
 
