@@ -27,7 +27,7 @@ def choose_c(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,trials=500):
     c = cstars[cstar_results.argmin()]
     
     # return the cstar that makes omega =2?
-    return c
+    return max(c,2)
 
 
 def bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=0,trials=500,alpha=.05):
@@ -51,11 +51,11 @@ def bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=0,trials=5
     test_stats =  np.array(test_stats)
     variance_stats = np.array(variance_stats)
     test_statsnd = np.array(test_stats+ V.sum()/(2))
-    
+
     #special situation for my test...
     stage1_distr = compute_stage1(ll1,grad1,hess1,params1,ll2, grad2,hess2,params2)
     cutoff = np.percentile(stage1_distr, 100*(1-alpha), axis=0)
-    variance_statsnd = np.clip(variance_stats,cutoff ,100000)
+    variance_statsnd = np.clip(variance_stats+ c*(V*V).sum()/np.sqrt(nobs),cutoff ,100000)
     #test_statsnd_var = test_statsnd.copy()
     #test_statsnd_var[variance_stats <= cutoff] = 0
     test_stats1,test_statsnd1,test_statsnd2 = (test_stats/variance_stats,
@@ -72,16 +72,17 @@ def bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=0,trials=5
  
 def bootstrap_test(test_stats,nd=False,alpha=.05):
     cv_upper = np.percentile(test_stats, 100*(1-alpha/2) , axis=0)
-    cv_lower = np.percentile(test_stats, 100*(1-alpha/2) , axis=0)
+    cv_lower = np.percentile(test_stats, 100*(alpha/2) , axis=0)
     if nd:
         cv_lower = cv_lower - 100*alpha/2/test_stats.size
         cv_upper = cv_upper +  100*alpha/2/test_stats.size
     return  2*(0 > cv_upper) + 1*(0 < cv_lower)
 
 
-def monte_carlo(total,gen_data,setup_shi,trials=500,biascorrect=False):
+def monte_carlo(total,gen_data,setup_shi,refinement_test=False,trials=500,biascorrect=False):
     reg = np.array([0, 0 ,0])
     twostep = np.array([0, 0 ,0])
+    refine_test = np.array([0, 0 ,0])
     boot1 = np.array([0, 0 ,0])
     boot2 = np.array([0, 0 ,0])
     boot3 = np.array([0, 0 ,0])
@@ -100,12 +101,15 @@ def monte_carlo(total,gen_data,setup_shi,trials=500,biascorrect=False):
         llr = llr +llrn
         var = llrn**2 + var
         omega = omega +omegan
+        cstar = choose_c(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,trials=500)
         
         #run the test
         reg_index = regular_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,biascorrect=biascorrect)
         twostep_index = two_step_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,biascorrect=biascorrect)
+        refine_index = regular_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,biascorrect=biascorrect,refinement_test=True,tuning_param=cstar)
         shi_index,boot_index1,boot_index2,boot_index3 = 0,0,0,0 #take worst case for now...
-        cstar = choose_c(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,trials=500)
+
+
         shi_index = ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
 
         #bootstrap indexes....
@@ -116,11 +120,15 @@ def monte_carlo(total,gen_data,setup_shi,trials=500,biascorrect=False):
         #update the test results
         reg[reg_index] = reg[reg_index] + 1
         twostep[twostep_index] = twostep[twostep_index] +1
+        refine_test[refine_index] = refine_test[refine_index] +1
         boot1[boot_index1] = boot1[boot_index1] + 1
         boot2[boot_index2] = boot2[boot_index2] + 1
         boot3[boot_index3] = boot3[boot_index3] + 1
         shi[shi_index] = shi[shi_index] + 1
-
+    
+    if refinement_test:
+        return reg/total,twostep/total,refine_test/total,boot1/total,boot2/total,boot3/total,shi/total,llr/total,np.sqrt( (var/total-(llr/total)**2) ),omega*np.sqrt(nobs)/total
+    
     return reg/total,twostep/total,boot1/total,boot2/total,boot3/total,shi/total,llr/total,np.sqrt( (var/total-(llr/total)**2) ),omega*np.sqrt(nobs)/total
 
 def print_mc(mc_out):

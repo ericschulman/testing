@@ -107,7 +107,8 @@ def ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,alpha=.05,nsims=1000
 #######################################################################
 
 
-def regular_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,alpha=.05,biascorrect=False):
+
+def regular_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,alpha=.05, tuning_param=0,refinement_test=False,biascorrect=False):
     nobs = ll1.shape[0]
     omega = np.sqrt((ll1 -ll2).var())
     V =  compute_eigen2(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
@@ -115,6 +116,11 @@ def regular_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,alpha=.05,biasc
     if biascorrect:
         llr = llr + V.sum()/(2) #fix the test...
     test_stat = llr/(omega*np.sqrt(nobs))
+
+    refine_factor = 1
+    if refinement_test:
+        omega/(omega+tuning_param/np.sqrt(nobs))
+
     return 1*(test_stat >= norm.ppf(1-alpha/2) ) + 2*( test_stat <= norm.ppf(alpha/2))
 
 
@@ -144,7 +150,7 @@ def compute_eigen2(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2):
     V,W = np.linalg.eig(W_hat)
 
     return V
-
+    
 
 def compute_stage1(ll1,grad1,hess1,params1,ll2, grad2,hess2,params2):
     nsims = 5000
