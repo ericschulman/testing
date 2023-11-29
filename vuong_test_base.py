@@ -119,9 +119,8 @@ def regular_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,alpha=.05, tuni
 
     refine_factor = 1
     if refinement_test:
-        omega/(omega+tuning_param/np.sqrt(nobs))
-
-    return 1*(test_stat >= norm.ppf(1-alpha/2) ) + 2*( test_stat <= norm.ppf(alpha/2))
+        refine_factor =omega/(omega+tuning_param/np.sqrt(nobs))
+    return 1*(refine_factor*test_stat >= norm.ppf(1-alpha/2) ) + 2*( refine_factor*test_stat <= norm.ppf(alpha/2))
 
 
 def compute_eigen2(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2):

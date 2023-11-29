@@ -79,7 +79,7 @@ def bootstrap_test(test_stats,nd=False,alpha=.05):
     return  2*(0 > cv_upper) + 1*(0 < cv_lower)
 
 
-def monte_carlo(total,gen_data,setup_shi,refinement_test=False,trials=500,biascorrect=False):
+def monte_carlo(total,gen_data,setup_shi,skip_boot=False,skip_shi=False,refinement_test=False,trials=500,biascorrect=False,cstar0=2):
     reg = np.array([0, 0 ,0])
     twostep = np.array([0, 0 ,0])
     refine_test = np.array([0, 0 ,0])
@@ -101,22 +101,27 @@ def monte_carlo(total,gen_data,setup_shi,refinement_test=False,trials=500,biasco
         llr = llr +llrn
         var = llrn**2 + var
         omega = omega +omegan
-        cstar = choose_c(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,trials=500)
-        
+        #cstar = choose_c(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,trials=500)
+        cstar = cstar0
         #run the test
         reg_index = regular_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,biascorrect=biascorrect)
         twostep_index = two_step_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,biascorrect=biascorrect)
         refine_index = regular_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,biascorrect=biascorrect,refinement_test=True,tuning_param=cstar)
         shi_index,boot_index1,boot_index2,boot_index3 = 0,0,0,0 #take worst case for now...
 
-
-        shi_index = ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
+        shi_index=0
+        if not skip_shi:
+            print('yo1')
+            shi_index = ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
 
         #bootstrap indexes....
-        test_stats,test_statsnd1,test_statsnd2 = bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=0,trials=trials)
-        boot_index1 = bootstrap_test(test_stats)
-        boot_index2 = bootstrap_test(test_statsnd1)
-        boot_index3 = bootstrap_test(test_statsnd2,nd=True)
+        boot_index1,boot_index2,boot_index3 = 0,0,0
+        if not skip_boot:
+            print('yo2')
+            test_stats,test_statsnd1,test_statsnd2 = bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=0,trials=trials)
+            boot_index1 = bootstrap_test(test_stats)
+            boot_index2 = bootstrap_test(test_statsnd1)
+            boot_index3 = bootstrap_test(test_statsnd2,nd=True)
         #update the test results
         reg[reg_index] = reg[reg_index] + 1
         twostep[twostep_index] = twostep[twostep_index] +1
