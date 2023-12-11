@@ -71,30 +71,31 @@ def ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,alpha=.05,nsims=1000
     z_norm_sim = max(z_normal,np.quantile(np.abs(Z_L),1-alpha)) #simulated z_normal
     
     cv = max(cv0,z_normal)
-    cstar = 0
-    adapt_c = False
-
+    cstar = 2
+    adapt_c = True
     if adapt_c:
+        #print(z_norm_sim,cv0)
         if cv0 - z_norm_sim > 0.5:  # if critical value with c=0 is not very big
             #set up array with cstars
-            cstars = np.arange(0,16,2)
-            cstars = 2**cstars - 1
+            cstars = np.linspace(0,.5,3)
 
             ##will loop through to find best...
             cstar_results = []
             cv_results = []
 
             for cstar in cstars:
-                cv_result =  max(quant(sigstar(cstar),cstar),z_normal)
+                cv_result =  quant(sigstar(cstar),cstar)
                 cv_results.append(cv_result)
-                cstar_results.append( (cv_result - z_norm_sim + .5)**2 )
+                cstar_results.append( (cv_result - z_norm_sim )**2 )
 
+            #print(z_norm_sim,cv0,cstars,cstar_results,cv_results)
             cstar_results = np.array(cstar_results)
             cv_results = np.array(cv_results)
 
             #set critical value and c_star?
             cv = cv_results[cstar_results.argmin()]
             cstar = cstars[cstar_results.argmin()]
+            #print(cv,cstar)
 
     #Computing the ND test statistic:
     nLR_hat = ll1.sum() - ll2.sum()
@@ -107,19 +108,27 @@ def ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,alpha=.05,nsims=1000
 #######################################################################
 
 
+def compute_test_stat(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2):
 
-def regular_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,alpha=.05, tuning_param=0,refinement_test=False,biascorrect=False):
     nobs = ll1.shape[0]
     omega = np.sqrt((ll1 -ll2).var())
     V =  compute_eigen2(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
     llr = (ll1 - ll2).sum()
+
+    return llr,omega,V,nobs
+
+
+def regular_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,alpha=.05, c=0,refinement_test=False,biascorrect=False):
+    llr,omega,V,nobs = compute_test_stat(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
+
     if biascorrect:
         llr = llr + V.sum()/(2) #fix the test...
     test_stat = llr/(omega*np.sqrt(nobs))
 
     refine_factor = 1
     if refinement_test:
-        refine_factor =omega/(omega+tuning_param/np.sqrt(nobs))
+        #print(omega,c,(V*V).sum(),np.sqrt(nobs),c*(V*V).sum()/np.sqrt(nobs))
+        refine_factor =omega/(omega+c*(V*V).sum()/np.sqrt(nobs))
     return 1*(refine_factor*test_stat >= norm.ppf(1-alpha/2) ) + 2*( refine_factor*test_stat <= norm.ppf(alpha/2))
 
 
