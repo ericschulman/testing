@@ -13,21 +13,7 @@ from vuong_test_base import *
     
 
 ##############################
-def choose_c(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,trials=500):
-    
-    #set up stuff
-    V =  compute_eigen2(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
-    nobs = ll1.shape[0]
-    
-    #set c so the variance of the test stats is about omega?
-    cstars = np.arange(0,16,2)
-    cstars = 2**cstars 
-    omegas = nobs*(ll1 - ll2).var() + cstars*(V*V).sum()
-    cstar_results =  (omegas - nobs)**2
-    c = cstars[cstar_results.argmin()]
-    
-    # return the cstar that makes omega =2?
-    return max(c,2)
+
 
 
 def bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c1=.01,c2=.02,trials=500,alpha=.05):
@@ -70,10 +56,10 @@ def bootstrap_test(test_stats,test_stat,alpha=.05,print_stuff=False):
     cv_lower = np.percentile(test_stats, 100*(alpha/2) , axis=0)
     if print_stuff:
         print(cv_upper,cv_lower,test_stat)
-    return  2*(test_stat > cv_upper) + 1*(test_stat < cv_lower)
+    return  1*(test_stat > cv_upper) + 2*(test_stat < cv_lower)
 
 
-def monte_carlo(total,gen_data,setup_shi,skip_boot=False,skip_shi=False,refinement_test=False,trials=500,biascorrect=False,c1=None,c2=None,alpha=.05):
+def monte_carlo(total,gen_data,setup_shi,skip_boot=False,skip_shi=False,refinement_test=False,trials=500,biascorrect=False,c1=None,c2=None,alpha=.05,adapt_c=True):
     reg = np.array([0, 0 ,0])
     twostep = np.array([0, 0 ,0])
     refine_test = np.array([0, 0 ,0])
@@ -109,7 +95,7 @@ def monte_carlo(total,gen_data,setup_shi,skip_boot=False,skip_shi=False,refineme
 
         shi_index=0
         if not skip_shi:
-            shi_index = ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,alpha=alpha)
+            shi_index = ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,alpha=alpha,adapt_c=adapt_c)
 
         #bootstrap indexes....
         boot_index1,boot_index2,boot_index3 = 0,0,0

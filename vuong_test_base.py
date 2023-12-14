@@ -11,7 +11,7 @@ from scipy.stats import norm
 ######################################################################################################
 ######################################################################################################
 
-def ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,alpha=.05,nsims=1000):
+def ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,alpha=.05,nsims=1000,adapt_c=True):
     
     n = ll1.shape[0]
     hess1 = hess1/n
@@ -72,7 +72,7 @@ def ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,alpha=.05,nsims=1000
     
     cv = max(cv0,z_normal)
     cstar = 2
-    adapt_c = True
+
     if adapt_c:
         #print(z_norm_sim,cv0)
         if cv0 - z_norm_sim > 0.5:  # if critical value with c=0 is not very big
