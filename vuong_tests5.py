@@ -123,6 +123,7 @@ def bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=0,trials=5
     variance_stats = np.sqrt(np.array(variance_stats)*nobs + c*(V*V).sum())
     variance_stats = np.clip(variance_stats,.5,100000) #this seems to help things... issues at 0...
     #set up test stat   
+    print(c,'cstar',np.sqrt(c*(V*V).sum()))
     omega = np.sqrt((ll1 - ll2).var()*nobs + c*(V*V).sum())
     llr = (ll1 - ll2).sum() +V.sum()/(2)
 
@@ -139,7 +140,8 @@ def bootstrap_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=0,trials=50
     
     #set up confidence intervals
     cv_lower = np.percentile(test_stats, 2.5, axis=0)
-    cv_upper = np.percentile(test_stats, 97.5, axis=0) 
+    cv_upper = np.percentile(test_stats, 97.5, axis=0)
+
     return  2*(0 >= cv_upper) + 1*(0 <= cv_lower)
 
 
@@ -332,6 +334,7 @@ def monte_carlo(total,gen_data,setup_shi,trials=500,biascorrect=False):
     #else:
         #do bootstrap test with c...
         cstar = choose_c(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,trials=500)
+        print('cstar',cstar)
         shi_index = ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
         boot_index1 = bootstrap_test_pivot(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=cstar,trials=trials)
         boot_index2 = bootstrap_test_pt(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c=cstar,trials=trials)

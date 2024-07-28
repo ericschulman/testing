@@ -20,8 +20,7 @@ def bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c1=.01,c2=.0
     llr,omega,V,nobs = compute_test_stat(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
     test_stat1 = llr/(omega*np.sqrt(nobs))
     test_stat2 = (llr + V.sum()/(2))/(omega*np.sqrt(nobs))
-    test_stat3 = (llr + V.sum()/(2))/((omega+c1*(V*V).sum())*np.sqrt(nobs))
-
+    test_stat3 = (llr + V.sum()/(2))/((omega+c1*(V*V).mean() )*np.sqrt(nobs))
 
     llr = ll1 -ll2
     test_stats = []
@@ -38,25 +37,27 @@ def bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c1=.01,c2=.0
     #final product, bootstrap
     test_stats =  np.array(test_stats)
     test_statsnd = np.array(test_stats+ V.sum()/(2))
-
+    test_statsnda = np.array(test_stats+ V.sum()+np.abs(V.sum())*c2/(2))
+    test_statsndb = np.array(test_stats+ V.sum()-np.abs(V.sum())*c2/(2))
     variance_stats = np.sqrt(variance_stats)
-    variance_statsnd = variance_stats+ c2*(V*V).sum()
-
-    test_stats1,test_stats2,test_stats3 = (test_stats/(variance_stats*np.sqrt(nobs)) - test_stat1,
+    variance_statsnd = variance_stats+ c1*(V*V).mean()
+    #print('thing',c1*(V*V).mean())
+    test_stats1,test_stats2,test_stats3a,test_stats3b = (test_stats/(variance_stats*np.sqrt(nobs)) - test_stat1,
         test_statsnd/(variance_stats*np.sqrt(nobs))- test_stat2, 
-        test_statsnd/(variance_statsnd*np.sqrt(nobs))- test_stat3)
+        test_statsnda/(variance_statsnd*np.sqrt(nobs))- test_stat3,
+        test_statsndb/(variance_statsnd*np.sqrt(nobs))- test_stat3)
     #print('stuff',omega,variance_stats.mean(),omega+c1*(V*V).sum(),variance_statsnd.mean())
 
-    return test_stats1,test_stats2,test_stats3 ,test_stat1,test_stat2,test_stat3
+    return test_stats1,test_stats2,test_stats3a ,test_stats3b ,test_stat1,test_stat2,test_stat3
 
 
  
-def bootstrap_test(test_stats,test_stat,alpha=.05,print_stuff=False):
+def bootstrap_test(test_stats,test_stat,alpha=.05,print_stuff=False,left=True,right=True):
     cv_upper = np.percentile(test_stats, 100*(1-alpha/2) , axis=0)
     cv_lower = np.percentile(test_stats, 100*(alpha/2) , axis=0)
     if print_stuff:
-        print(cv_upper,cv_lower,test_stat)
-    return  1*(test_stat > cv_upper) + 2*(test_stat < cv_lower)
+        print(cv_lower,test_stat,cv_upper)
+    return  1*(test_stat > cv_upper)*right + 2*(test_stat < cv_lower)*left
 
 
 def monte_carlo(total,gen_data,setup_shi,skip_boot=False,skip_shi=False,refinement_test=False,trials=500,biascorrect=False,c1=None,c2=None,alpha=.05,adapt_c=True):
@@ -100,14 +101,16 @@ def monte_carlo(total,gen_data,setup_shi,skip_boot=False,skip_shi=False,refineme
         #bootstrap indexes....
         boot_index1,boot_index2,boot_index3 = 0,0,0
         if not skip_boot:
-            test_stats1,test_stats2,test_stats3 ,test_stat1,test_stat2,test_stat3 = bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c1=c1,c2=c2,trials=trials)
+            test_stats1,test_stats2,test_stats3a,test_stats3b ,test_stat1,test_stat2,test_stat3 = bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c1=c1,c2=c2,trials=trials)
             #print('-- test1 --')
             boot_index1 = bootstrap_test(test_stats1,test_stat1,alpha=alpha)
             #print('-- test2 --')
-            boot_index2 = bootstrap_test(test_stats2,test_stat2,alpha=alpha)
+            boot_index2 = bootstrap_test(test_stats2,test_stat2,alpha=alpha,print_stuff=False)
             #print('-- test3--')
-            boot_index3 = bootstrap_test(test_stats3,test_stat3,alpha=alpha)
-
+            boot_index3a = bootstrap_test(test_stats3a,test_stat3,alpha=alpha,print_stuff=False,left=False) #test right side
+            boot_index3b = bootstrap_test(test_stats3b,test_stat3,alpha=alpha,print_stuff=False,right=False) #test left side
+            boot_index3 = max(boot_index3a,boot_index3b)
+            #print(boot_index3a,boot_index3b,boot_index3,'----')
         #update the test results
         reg[reg_index] = reg[reg_index] + 1
         twostep[twostep_index] = twostep[twostep_index] +1
@@ -116,7 +119,7 @@ def monte_carlo(total,gen_data,setup_shi,skip_boot=False,skip_shi=False,refineme
         boot2[boot_index2] = boot2[boot_index2] + 1
         boot3[boot_index3] = boot3[boot_index3] + 1
         shi[shi_index] = shi[shi_index] + 1
-        #print('-------------------------------')
+
     
     if refinement_test:
         return reg/total,twostep/total,refine_test/total,boot1/total,boot2/total,boot3/total,shi/total,llr/total,np.sqrt( (var/total-(llr/total)**2) ),omega*np.sqrt(nobs)/total
@@ -133,6 +136,19 @@ def print_mc(mc_out):
         print('%s & %.2f & %.2f & %.2f & %.2f & %.2f & %.2f   \\\\'%(labels[i], round(reg[i],2),round(twostep[i],2),round(boot1[i],2),round(boot2[i],2),round(boot3[i],2),round(shi[i],2)))
     print('\\hline')
     print('\\end{tabular}')
+
+def print_mc2(mc_out):
+    reg,twostep, refine_test, boot1,boot2,boot3,shi, llr,std, omega = mc_out
+    print('\\begin{tabular}{|c|c|c|}')
+    print('\\hline')
+    print('Model &  Normal & Bootstrap-ND  \\\\ \\hline \\hline')
+    labels = ['No selection', 'Model 1', 'Model 2']
+    for i in range(3): 
+        print('%s & %.2f & %.2f \\\\'%(labels[i], round(refine_test[i],2),round(boot3[i],2) ))
+    print('\\hline')
+    print('\\end{tabular}')
+
+
 
 
 
