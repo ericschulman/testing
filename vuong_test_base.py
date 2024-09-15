@@ -77,7 +77,7 @@ def ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,alpha=.05,nsims=1000
         #print(z_norm_sim,cv0)
         if cv0 - z_norm_sim > 0.5:  # if critical value with c=0 is not very big
             #set up array with cstars
-            cstars = np.linspace(0,.5,3)
+            cstars = np.linspace(0,.75,4)
 
             ##will loop through to find best...
             cstar_results = []

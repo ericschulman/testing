@@ -8,10 +8,6 @@ from scipy.optimize import minimize
 from scipy.stats import norm
 from vuong_test_base import *
 
-
-
-    
-
 ##############################
 
 
@@ -37,8 +33,8 @@ def bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c1=.01,c2=.0
     #final product, bootstrap
     test_stats =  np.array(test_stats)
     test_statsnd = np.array(test_stats+ V.sum()/(2))
-    test_statsnda = np.array(test_stats+ V.sum()+np.abs(V.sum())*c2/(2))
-    test_statsndb = np.array(test_stats+ V.sum()-np.abs(V.sum())*c2/(2))
+    test_statsnda = np.array(test_stats+ V.sum()/2+np.abs(V.sum())*c2)
+    test_statsndb = np.array(test_stats+ V.sum()/2-np.abs(V.sum())*c2)
     variance_stats = np.sqrt(variance_stats)
     variance_statsnd = variance_stats+ c1*(V*V).mean()
     #print('thing',c1*(V*V).mean())
@@ -57,10 +53,12 @@ def bootstrap_test(test_stats,test_stat,alpha=.05,print_stuff=False,left=True,ri
     cv_lower = np.percentile(test_stats, 100*(alpha/2) , axis=0)
     if print_stuff:
         print(cv_lower,test_stat,cv_upper)
+        if  left:
+            print('---')
     return  1*(test_stat > cv_upper)*right + 2*(test_stat < cv_lower)*left
 
 
-def monte_carlo(total,gen_data,setup_shi,skip_boot=False,skip_shi=False,refinement_test=False,trials=500,biascorrect=False,c1=None,c2=None,alpha=.05,adapt_c=True):
+def monte_carlo(total,gen_data,setup_shi,skip_boot=False,skip_shi=False,refinement_test=False,trials=500,biascorrect=False,c1=None,c2=None,alpha=.05,adapt_c=True,print_stuff=True):
     reg = np.array([0, 0 ,0])
     twostep = np.array([0, 0 ,0])
     refine_test = np.array([0, 0 ,0])
@@ -107,8 +105,9 @@ def monte_carlo(total,gen_data,setup_shi,skip_boot=False,skip_shi=False,refineme
             #print('-- test2 --')
             boot_index2 = bootstrap_test(test_stats2,test_stat2,alpha=alpha,print_stuff=False)
             #print('-- test3--')
-            boot_index3a = bootstrap_test(test_stats3a,test_stat3,alpha=alpha,print_stuff=False,left=False) #test right side
-            boot_index3b = bootstrap_test(test_stats3b,test_stat3,alpha=alpha,print_stuff=False,right=False) #test left side
+            print_stuff_i =  ((i%25) == 0 ) and print_stuff
+            boot_index3a = bootstrap_test(test_stats3a,test_stat3,alpha=alpha,print_stuff=print_stuff_i,left=False) #test right side
+            boot_index3b = bootstrap_test(test_stats3b,test_stat3,alpha=alpha,print_stuff=print_stuff_i,right=False) #test left side
             boot_index3 = max(boot_index3a,boot_index3b)
             #print(boot_index3a,boot_index3b,boot_index3,'----')
         #update the test results
