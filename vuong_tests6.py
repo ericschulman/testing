@@ -156,7 +156,6 @@ def bootstrap_test(test_stats,nd=False):
 ######################################################################################################
 
 def ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,alpha=.05,nsims=1000):
-    
     n = ll1.shape[0]
     hess1 = hess1/n
     hess2 = hess2/n

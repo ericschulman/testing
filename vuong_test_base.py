@@ -12,7 +12,6 @@ from scipy.stats import norm
 ######################################################################################################
 
 def ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,alpha=.05,nsims=1000,adapt_c=True):
-    
     n = ll1.shape[0]
     hess1 = hess1/n
     hess2 = hess2/n
@@ -71,7 +70,7 @@ def ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,alpha=.05,nsims=1000
     z_norm_sim = max(z_normal,np.quantile(np.abs(Z_L),1-alpha)) #simulated z_normal
     
     cv = max(cv0,z_normal)
-    cstar = 2
+    cstar =0
 
     if adapt_c:
         #print(z_norm_sim,cv0)
@@ -102,6 +101,7 @@ def ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,alpha=.05,nsims=1000
     nomega2_hat = (ll1- ll2).var() ### this line may not be correct #####                    
     #Non-degenerate Vuong Tests    
     Tnd = (nLR_hat+V.sum()/2)/np.sqrt(n*nomega2_hat + cstar*(V*V).sum())
+
     return 1*(Tnd >= cv) + 2*(Tnd <= -cv)
 
 #######################################################################
@@ -158,7 +158,7 @@ def compute_eigen2(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2):
     V,W = np.linalg.eig(W_hat)
 
     return V
-    
+
 
 def compute_stage1(ll1,grad1,hess1,params1,ll2, grad2,hess2,params2):
     nsims = 5000
@@ -172,6 +172,7 @@ def compute_stage1(ll1,grad1,hess1,params1,ll2, grad2,hess2,params2):
     Z0 = np.random.normal( size=(nsims,k) )**2
     
     return np.matmul(Z0,V*V)
+
 
 
 def two_step_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2, alpha=.05, biascorrect=False):
