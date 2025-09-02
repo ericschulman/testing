@@ -79,10 +79,6 @@ def bootstrap_distr(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,c1=.01,c2=.0
     
     #setting up nd test with assymetric bootstrap
     test_stats3 = np.sqrt(nobs)*test_statsnd/(variance_statsnd)
-    
-
-   
-    
 
     test_stats3a,test_stats3b = test_stats3 -test_stat3 + bonus_term, test_stats3 -test_stat3 -bonus_term
 
