@@ -49,15 +49,16 @@ def sw_test_stat(ll1, grad1, hess1, params1, ll2, grad2, hess2, params2, epsilon
 
 
 def sw_test(ll1, grad1, hess1, params1, ll2, grad2, hess2, params2, epsilon=.5,
-            alpha=.05,  biascorrect=False):
-
-    llr_reg,omega_reg,V,nobs =  sw_test_stat(ll1, grad1, hess1, params1, ll2, grad2, hess2, params2, epsilon=.5)
+            alpha=.05,  biascorrect=False,print_stuff=False):
+    
+    llr_reg,omega_reg,V,nobs =  sw_test_stat(ll1, grad1, hess1, params1, ll2, grad2, hess2, params2, epsilon=epsilon)
 
     if biascorrect:
         llr_reg += V.sum() / 2
 
     test_stat = llr_reg / (omega_reg * np.sqrt(nobs))
-
+    if print_stuff:
+        print(epsilon,test_stat)
     # Two-sided test
     reject_high = (test_stat >= norm.ppf(1 - alpha / 2))
     reject_low  = (test_stat <= norm.ppf(alpha / 2))
@@ -93,7 +94,7 @@ def compute_optimal_epsilon(ll1, grad1, hess1, params1,
     idx_odd  = np.arange(1, nobs, 2)
 
     # Variances
-    sigma2_hat  = max(float(np.var(ll1 - ll2, ddof=0)),.1) #NOTE cheating a little bit with epsilon... keep it big enough
+    sigma2_hat  = max(float(np.var(ll1 - ll2, ddof=0)),.5) #NOTE cheating a little bit with epsilon... keep it big enough
     sigmaA2_hat = float(np.var(ll1[idx_even], ddof=0)) if idx_even.size > 1 else 0.0
     sigmaB2_hat = float(np.var(ll2[idx_odd],  ddof=0)) if idx_odd.size  > 1 else 0.0
     sigma_hat   = np.sqrt(max(sigma2_hat, 1e-12))
@@ -261,15 +262,20 @@ def sw_bs_test(ll1, grad1, hess1, params1, ll2, grad2, hess2, params2,
 
 
 
-def monte_carlo(total,gen_data,setup_shi,skip_boot=False,skip_shi=False,refinement_test=False,trials=500,
+def monte_carlo(total,gen_data,setup_shi,skip_boot=False,skip_shi=False,trials=500,
     biascorrect=False,alpha=.05,adapt_c=True,print_stuff=True,epsilon=.5,data_tuned_epsilon=False):
     reg = np.array([0, 0 ,0])
     twostep = np.array([0, 0 ,0])
-    refine_test = np.array([0, 0 ,0])
+
+    sw = np.array([0, 0 ,0])
+    shi = np.array([0, 0 ,0])
+
     boot1 = np.array([0, 0 ,0])
     boot2 = np.array([0, 0 ,0])
+
+    sw_test_opt = np.array([0, 0 ,0])
     boot3 = np.array([0, 0 ,0])
-    shi = np.array([0, 0 ,0])
+
     omega = 0
     llr = 0
     var = 0
@@ -289,7 +295,8 @@ def monte_carlo(total,gen_data,setup_shi,skip_boot=False,skip_shi=False,refineme
         #run the test
         reg_index = regular_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,biascorrect=biascorrect,alpha=alpha)
         twostep_index = two_step_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,biascorrect=biascorrect,alpha=alpha)
-        refine_index = regular_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,biascorrect=biascorrect,refinement_test=True,c=0,alpha=alpha)
+        sw_index = sw_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,epsilon=epsilon,alpha=alpha,biascorrect=True
+            ,print_stuff=False)
         shi_index,boot_index1,boot_index2,boot_index3 = 0,0,0,0 #take worst case for now...
 
         shi_index=0
@@ -297,58 +304,71 @@ def monte_carlo(total,gen_data,setup_shi,skip_boot=False,skip_shi=False,refineme
             shi_index = ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,alpha=alpha,adapt_c=adapt_c)
 
         #bootstrap indexes....
-        boot_index1,boot_index2,boot_index3 = 0,0,0
+        boot_index1,boot_index2 = 0,0
         if not skip_boot:
-            print_stuff_i =  ((i%25) == 0 ) and print_stuff
 
-            # boot1: regularized split SW test
-            boot_index1 = sw_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,epsilon=epsilon,alpha=alpha,biascorrect=biascorrect)
-            # boot2: standard bootstrap
-            boot_index2 = 0
-            # boot3: pairwise bootstrap
-            boot_index3 = 0
-            if not skip_boot:
-                boot_index2 = sw_bs_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,
-                                    alpha=alpha,trials=trials,epsilon=epsilon,biascorrect=biascorrect,
+            print_stuff_i =  ((i%25) == 0 ) and print_stuff
+            
+            # boot1: standard bootstrap
+            boot_index1 = sw_bs_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,
+                                    alpha=alpha,trials=trials,epsilon=epsilon,biascorrect=True,
                                     seed=None,print_stuff=False,pairwise=False)
-                boot_index3 = sw_bs_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,
-                                    alpha=alpha,trials=trials,epsilon=epsilon,biascorrect=biascorrect,
+            # boot2: pairwise bootstrap
+            boot_index2 = sw_bs_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,
+                                    alpha=alpha,trials=trials,epsilon=epsilon,biascorrect=True,
                                     seed=None,print_stuff=False,pairwise=True)
 
+        
+        sw_opt_index,boot_index3 = 0,0
+        if data_tuned_epsilon:
+            epsilon_opt = compute_optimal_epsilon(ll1, grad1, hess1, params1,
+                 ll2, grad2, hess2, params2, alpha=alpha)
+            sw_opt_index = sw_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,epsilon=epsilon_opt,
+                alpha=alpha,biascorrect=True,print_stuff=False)
+            # boot3: pairwise bootstrap w/ optimal epsilon
+            boot_index3 = sw_bs_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,
+                                    alpha=alpha,trials=trials,epsilon=epsilon_opt,biascorrect=True,
+                                    seed=None,print_stuff=False,pairwise=True)
 
         reg[reg_index] = reg[reg_index] + 1
         twostep[twostep_index] = twostep[twostep_index] +1
-        refine_test[refine_index] = refine_test[refine_index] +1
-        boot1[boot_index1] = boot1[boot_index1] + 1
-        boot2[boot_index2] = boot2[boot_index2] + 1
-        boot3[boot_index3] = boot3[boot_index3] + 1
+        
+        sw[sw_index] = sw[sw_index] +1
         shi[shi_index] = shi[shi_index] + 1
 
-    
-    if refinement_test:
-        return reg/total,twostep/total,refine_test/total,boot1/total,boot2/total,boot3/total,shi/total,llr/total,np.sqrt( (var/total-(llr/total)**2) ),omega*np.sqrt(nobs)/total
-    
-    return reg/total,twostep/total,boot1/total,boot2/total,boot3/total,shi/total,llr/total,np.sqrt( (var/total-(llr/total)**2) ),omega*np.sqrt(nobs)/total
 
-def print_mc(mc_out):
-    reg,twostep, boot1,boot2,boot3,shi, llr,std, omega = mc_out
+        boot1[boot_index1] = boot1[boot_index1] + 1
+        boot2[boot_index2] = boot2[boot_index2] + 1
+
+        sw_test_opt[sw_opt_index] = sw_test_opt[sw_opt_index] +1
+        boot3[boot_index3] = boot3[boot_index3] + 1
+        
+    return reg/total,twostep/total,sw/total,boot1/total,boot2/total,sw_test_opt/total,boot3/total,shi/total,llr/total,np.sqrt( (var/total-(llr/total)**2) ),omega*np.sqrt(nobs)/total
+    
+
+def print_mc(mc_out,data_tuned_epsilon=False):
+    reg,twostep, sw, boot1,boot2,sw_test_opt,boot3,shi, llr,std, omega =  mc_out
     print('\\begin{tabular}{|c|c|c|c|c|c|c|}')
     print('\\hline')
-    print('Model &  Normal & Two-Step & Bootstrap & Bootstrap-TIC & Bootstrap-ND & Shi (2015) \\\\ \\hline \\hline')
+    print('Model &  Normal & Two-Step & SW Test & Naive Bootstrap & Pairwise Bootstrap & Shi (2015) \\\\ \\hline \\hline')
     labels = ['No selection', 'Model 1', 'Model 2']
     for i in range(3): 
-        print('%s & %.2f & %.2f & %.2f & %.2f & %.2f & %.2f   \\\\'%(labels[i], round(reg[i],2),round(twostep[i],2),round(boot1[i],2),round(boot2[i],2),round(boot3[i],2),round(shi[i],2)))
+        if data_tuned_epsilon:
+            print('%s & %.2f & %.2f & %.2f & %.2f & %.2f & %.2f   \\\\'%(labels[i], round(reg[i],2),round(twostep[i],2),round(sw_test_opt[i],2),round(boot1[i],2),round(boot3[i],2),round(shi[i],2)))
+        else:
+            print('%s & %.2f & %.2f & %.2f & %.2f & %.2f & %.2f   \\\\'%(labels[i], round(reg[i],2),round(twostep[i],2),round(sw[i],2),round(boot1[i],2),round(boot2[i],2),round(shi[i],2)))
     print('\\hline')
     print('\\end{tabular}')
 
+
 def print_mc2(mc_out):
-    reg,twostep, refine_test, boot1,boot2,boot3,shi, llr,std, omega = mc_out
+    reg,twostep, sw, boot1,boot2,sw_test_opt,boot3,shi, llr,std, omega =  mc_out
     print('\\begin{tabular}{|c|c|c|}')
     print('\\hline')
-    print('Model &  Normal & Bootstrap-ND  \\\\ \\hline \\hline')
+    print('Model &  SW Test & Pairwise Bootstrap  \\\\ \\hline \\hline')
     labels = ['No selection', 'Model 1', 'Model 2']
     for i in range(3): 
-        print('%s & %.2f & %.2f \\\\'%(labels[i], round(refine_test[i],2),round(boot3[i],2) ))
+        print('%s & %.2f & %.2f \\\\'%(labels[i], round(sw_test_opt[i],2),round(boot3[i],2) ))
     print('\\hline')
     print('\\end{tabular}')
 
