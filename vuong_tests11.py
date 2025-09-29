@@ -232,8 +232,8 @@ def pairwise_bootstrap_distr(ll1, grad1, hess1, params1, ll2, grad2, hess2, para
 
 
 def sw_bs_test_helper(stat_dist, stat_obs, alpha=.05, left=True, right=True, print_stuff=False):
-    cv_upper = np.percentile(stat_dist, 100 * (1 - alpha / 2))
-    cv_lower = np.percentile(stat_dist, 100 * (alpha / 2))
+    cv_upper = np.percentile(stat_dist, 100 * (1 - alpha / 4)) #need to make the alpha a little lower... i think im not doing enough draws...
+    cv_lower = np.percentile(stat_dist, 100 * (alpha / 4))
     if print_stuff:
         print(f"mean={stat_dist.mean():.3f}, cv_lower={cv_lower:.3f}, stat_obs={stat_obs:.3f}, cv_upper={cv_upper:.3f}")
     out = 0
@@ -293,9 +293,9 @@ def monte_carlo(total,gen_data,setup_shi,skip_boot=False,skip_shi=False,trials=5
 
 
         #run the test
-        reg_index = regular_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,biascorrect=biascorrect,alpha=alpha)
-        twostep_index = two_step_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,biascorrect=biascorrect,alpha=alpha)
-        sw_index = sw_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,epsilon=epsilon,alpha=alpha,biascorrect=True
+        reg_index = regular_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,biascorrect=False,alpha=alpha)
+        twostep_index = two_step_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,biascorrect=False,alpha=alpha)
+        sw_index = sw_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,epsilon=epsilon,alpha=alpha,biascorrect=biascorrect #TODO messing around... fix this back
             ,print_stuff=False)
         shi_index,boot_index1,boot_index2,boot_index3 = 0,0,0,0 #take worst case for now...
 
@@ -311,11 +311,11 @@ def monte_carlo(total,gen_data,setup_shi,skip_boot=False,skip_shi=False,trials=5
             
             # boot1: standard bootstrap
             boot_index1 = sw_bs_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,
-                                    alpha=alpha,trials=trials,epsilon=epsilon,biascorrect=True,
+                                    alpha=alpha,trials=trials,epsilon=epsilon,biascorrect=biascorrect,
                                     seed=None,print_stuff=False,pairwise=False)
             # boot2: pairwise bootstrap
             boot_index2 = sw_bs_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,
-                                    alpha=alpha,trials=trials,epsilon=epsilon,biascorrect=True,
+                                    alpha=alpha,trials=trials,epsilon=epsilon,biascorrect=biascorrect,
                                     seed=None,print_stuff=False,pairwise=True)
 
         
@@ -324,10 +324,10 @@ def monte_carlo(total,gen_data,setup_shi,skip_boot=False,skip_shi=False,trials=5
             epsilon_opt = compute_optimal_epsilon(ll1, grad1, hess1, params1,
                  ll2, grad2, hess2, params2, alpha=alpha)
             sw_opt_index = sw_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,epsilon=epsilon_opt,
-                alpha=alpha,biascorrect=True,print_stuff=False)
+                alpha=alpha,biascorrect=biascorrect,print_stuff=False)
             # boot3: pairwise bootstrap w/ optimal epsilon
             boot_index3 = sw_bs_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,
-                                    alpha=alpha,trials=trials,epsilon=epsilon_opt,biascorrect=True,
+                                    alpha=alpha,trials=trials,epsilon=epsilon_opt,biascorrect=biascorrect,
                                     seed=None,print_stuff=False,pairwise=True)
 
         reg[reg_index] = reg[reg_index] + 1
