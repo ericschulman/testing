@@ -37,7 +37,7 @@ def sw_test_stat(ll1, grad1, hess1, params1, ll2, grad2, hess2, params2, epsilon
     omega_reg = np.sqrt(omega_reg2)
 
     if print_stuff:
-        print('llr',llr,llr_split)
+        print('llr',llr,llr_split,epsilon)
         print('omega',omega2,omega_A2,omega_B2,np.sqrt(omega2),np.sqrt(omega_reg2))
     if not compute_v:
         return llr_reg,omega_reg,nobs 
@@ -88,7 +88,7 @@ def _trace_HinvV(H, V):
 
 def compute_optimal_epsilon(ll1, grad1, hess1, params1,
                  ll2, grad2, hess2, params2, alpha=0.05, ridge=1e-8,
-                            min_epsilon=1e-6, max_epsilon=10.0):
+                            min_epsilon=1e-6, max_epsilon=1.0):
     nobs = ll1.shape[0]
     idx_even = np.arange(0, nobs, 2)
     idx_odd  = np.arange(1, nobs, 2)
@@ -185,19 +185,24 @@ def bootstrap_distr(ll1, grad1, hess1, params1, ll2, grad2, hess2, params2,
 
 
 def pairwise_bootstrap_distr(ll1, grad1, hess1, params1, ll2, grad2, hess2, params2,
-                    epsilon=0.5, trials=500, seed=None, biascorrect=False):
+                    epsilon=0.5, trials=500, seed=None, biascorrect=False
+                    ,print_stuff=False ):
     rng = np.random.default_rng(seed)
     nobs = ll1.shape[0]
 
     # Compute observed statistic
     llr_reg, omega_reg, V, _ = sw_test_stat(
         ll1, grad1, hess1, params1, ll2, grad2, hess2, params2,
-        epsilon=epsilon, print_stuff=False
+        epsilon=epsilon, print_stuff=print_stuff
     )
+    
+    if print_stuff:
+        print('llr_reg,omega_reg',llr_reg, omega_reg, V.sum() / 2)
+
     if biascorrect:
         llr_reg += V.sum() / 2
     test_stat = llr_reg / (omega_reg * np.sqrt(nobs))
-    
+
     # Indices for even/odd destinations and source pairs
     idx_even = np.arange(0, nobs, 2)
     idx_odd  = idx_even + 1
@@ -226,21 +231,24 @@ def pairwise_bootstrap_distr(ll1, grad1, hess1, params1, ll2, grad2, hess2, para
             epsilon=epsilon, compute_v=False, print_stuff=False
         )
         stat_s = (llr_reg_s-llr_reg) / (omega_reg_s * np.sqrt(nobs_in_s))
+        if biascorrect:
+            stat_s = (llr_reg_s-llr_reg+V.sum()/(2)) / (omega_reg_s * np.sqrt(nobs_in_s))
+      
         stat_dist.append(stat_s)
-    
-    return np.array(stat_dist) , test_stat
+    stat_dist = np.array(stat_dist)
+    return stat_dist , test_stat
 
 
 def sw_bs_test_helper(stat_dist, stat_obs, alpha=.05, left=True, right=True, print_stuff=False):
-    cv_upper = np.percentile(stat_dist, 100 * (1 - alpha / 4)) #need to make the alpha a little lower... i think im not doing enough draws...
-    cv_lower = np.percentile(stat_dist, 100 * (alpha / 4))
+    cv_upper = np.percentile(stat_dist, 100 * (1 - alpha / 2)) #need to make the alpha a little lower... i think im not doing enough draws...
+    cv_lower = np.percentile(stat_dist, 100 * (alpha / 2))
     if print_stuff:
         print(f"mean={stat_dist.mean():.3f}, cv_lower={cv_lower:.3f}, stat_obs={stat_obs:.3f}, cv_upper={cv_upper:.3f}")
     out = 0
     if right and (stat_obs > cv_upper):
         out = 1
     if left and (stat_obs < cv_lower):
-        out += 2
+        out = 2
     return out
 
 def sw_bs_test(ll1, grad1, hess1, params1, ll2, grad2, hess2, params2,
@@ -255,9 +263,14 @@ def sw_bs_test(ll1, grad1, hess1, params1, ll2, grad2, hess2, params2,
     else:
         stat_dist, test_stat = pairwise_bootstrap_distr(
             ll1, grad1, hess1, params1, ll2, grad2, hess2, params2,
-            epsilon=epsilon, trials=trials, seed=seed, biascorrect=biascorrect
+            epsilon=epsilon, trials=trials, seed=seed, biascorrect=biascorrect, print_stuff=print_stuff
         )
-    return sw_bs_test_helper(stat_dist, test_stat, alpha=alpha, print_stuff=print_stuff)
+
+    out = sw_bs_test_helper(stat_dist, test_stat, alpha=alpha, print_stuff=print_stuff)
+    if print_stuff:
+        print("returned out =", out)
+
+    return out
 
 
 
@@ -293,9 +306,9 @@ def monte_carlo(total,gen_data,setup_shi,skip_boot=False,skip_shi=False,trials=5
 
 
         #run the test
-        reg_index = regular_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,biascorrect=False,alpha=alpha)
+        reg_index = regular_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,biascorrect=False,alpha=alpha,print_stuff=False)
         twostep_index = two_step_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,biascorrect=False,alpha=alpha)
-        sw_index = sw_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,epsilon=epsilon,alpha=alpha,biascorrect=biascorrect #TODO messing around... fix this back
+        sw_index = sw_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,epsilon=epsilon,alpha=alpha,biascorrect=False #TODO messing around... fix this back
             ,print_stuff=False)
         shi_index,boot_index1,boot_index2,boot_index3 = 0,0,0,0 #take worst case for now...
 
@@ -317,19 +330,19 @@ def monte_carlo(total,gen_data,setup_shi,skip_boot=False,skip_shi=False,trials=5
             boot_index2 = sw_bs_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,
                                     alpha=alpha,trials=trials,epsilon=epsilon,biascorrect=biascorrect,
                                     seed=None,print_stuff=False,pairwise=True)
-
         
         sw_opt_index,boot_index3 = 0,0
         if data_tuned_epsilon:
+
             epsilon_opt = compute_optimal_epsilon(ll1, grad1, hess1, params1,
                  ll2, grad2, hess2, params2, alpha=alpha)
+            #print(epsilon_opt)
             sw_opt_index = sw_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,epsilon=epsilon_opt,
-                alpha=alpha,biascorrect=biascorrect,print_stuff=False)
+                alpha=alpha,biascorrect=False,print_stuff=False)
             # boot3: pairwise bootstrap w/ optimal epsilon
             boot_index3 = sw_bs_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,
                                     alpha=alpha,trials=trials,epsilon=epsilon_opt,biascorrect=biascorrect,
                                     seed=None,print_stuff=False,pairwise=True)
-
         reg[reg_index] = reg[reg_index] + 1
         twostep[twostep_index] = twostep[twostep_index] +1
         

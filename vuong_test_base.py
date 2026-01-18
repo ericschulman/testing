@@ -76,7 +76,7 @@ def ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,alpha=.05,nsims=1000
         #print(z_norm_sim,cv0)
         if cv0 - z_norm_sim > 0.5:  # if critical value with c=0 is not very big
             #set up array with cstars
-            cstars = np.linspace(0,.75,4)
+            cstars = np.linspace(0,.2,3)
 
             ##will loop through to find best...
             cstar_results = []
@@ -118,12 +118,14 @@ def compute_test_stat(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2):
     return llr,omega,V,nobs
 
 
-def regular_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,alpha=.05, c=0,refinement_test=False,biascorrect=False):
+def regular_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2,alpha=.05, c=0,refinement_test=False,biascorrect=False,print_stuff=True):
     llr,omega,V,nobs = compute_test_stat(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2)
 
     if biascorrect:
         llr = llr + V.sum()/(2) #fix the test...
     test_stat = llr/(omega*np.sqrt(nobs))
+    if print_stuff:
+        print(llr,omega,test_stat)
 
     refine_factor = 1
     if refinement_test:
