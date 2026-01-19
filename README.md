@@ -1,118 +1,128 @@
-## Overview
+# Vuong-Style Model Selection Tests in Python
 
-This repo contains code used to run the **Monte Carlo experiments** in [my job market paper](https://drive.google.com/file/d/14FdLzfvJzOyyH0F6itTg2TeE7dgiF9Jd/view). The experiments study and compare model selection tests in the spirit of [Vuong (1989)](https://www.jstor.org/stable/1912557), with a focus on improving finite-sample calibration using a **split-sample / pairwise bootstrap**. The two main Monte Carlo designs (Examples 1 and 2) are drawn from the simulation frameworks in [Shi (2015)](https://onlinelibrary.wiley.com/doi/abs/10.3982/QE382) and [Schennach and Wilhelm (2017)](https://www.tandfonline.com/doi/full/10.1080/01621459.2016.1224716).
+This repository provides a **statsmodels-friendly Python implementation** of the three major families of Vuong-style non-nested model selection tests:
 
-The code is designed to work naturally with [`GenericLikelihoodModel`](https://www.statsmodels.org/dev/dev/generated/statsmodels.base.model.GenericLikelihoodModel.html) in [`statsmodels`](https://www.statsmodels.org/stable/index.html).
+1. **Classical [Vuong (1989)](https://www.jstor.org/stable/1912557)**: studentized log-likelihood ratio with fixed normal critical values  
+2. **[Shi (2015)](https://onlinelibrary.wiley.com/doi/abs/10.3982/QE382)**: *non-degenerate* modified Vuong procedure with simulation-based calibration (and optional adaptive tuning)  
+3. **[Schennach–Wilhelm (2017)](https://www.tandfonline.com/doi/full/10.1080/01621459.2016.1224716)**: *split-sample regularized* statistic, plus **bootstrap calibration** (including a **pairwise bootstrap** that preserves the split structure)
 
----
+The repo also includes **Monte Carlo replication notebooks** (for my job market paper) that diagnose finite-sample miscalibration and show how split-sample regularization and bootstrap critical values can improve performance.
 
-## Background on the Monte Carlo designs (Example 1 vs Example 2)
-
-**Example 1: random denominator (non-normal finite-sample tails)**  
-Follows [Shi (2015)](https://onlinelibrary.wiley.com/doi/abs/10.3982/QE382) and [Schennach and Wilhelm (2017)](https://www.tandfonline.com/doi/full/10.1080/01621459.2016.1224716). The design makes the variance of the per-observation log-likelihood difference sometimes very small, so the usual studentized statistic can be skewed/heavy-tailed in finite samples. Fixed normal critical values can then be miscalibrated (often extremely conservative).  
-**Used for:** size tables, power curves, and “refinement” diagnostics (sampling vs bootstrap vs normal).
-
-**Example 2: numerator bias (finite-sample bias under misspecification)**  
-Emphasizes finite-sample bias in the plug-in log-likelihood difference under misspecification (a Takeuchi-style phenomenon emphasized in [Shi (2015)](https://onlinelibrary.wiley.com/doi/abs/10.3982/QE382)). This shows up strongly with many weak regressors, motivating an O(1/n)-style trace correction.  
-**Used for:** size curves/tables under the null (often highlighting small/moderate n) and refinement diagnostics.
+Paper: https://drive.google.com/file/d/14FdLzfvJzOyyH0F6itTg2TeE7dgiF9Jd/view
 
 ---
 
-## Repo layout (Monte Carlo notebooks + test code)
+## Quickstart (statsmodels / `GenericLikelihoodModel`)
 
-### Monte Carlo notebooks (`revision_2025/`)
-The current replication workflow is organized as **Jupyter notebooks (`.ipynb`)** under `revision_2025/`.
-
-**Example 1 notebooks**
-- `revision_2025/sw_table1/` — Example 1 size results in table form (null rejection frequencies).
-- `revision_2025/sw_table_abc/` — Example 1 results focused mostly on power.
-- `revision_2025/refinement_denom_ex/` — Example 1 refinement/appendix figures (distribution-shape diagnostics; density overlays / tail behavior).
-
-**Example 2 notebooks**
-- `revision_2025/sw_Table1_refinement_ex/` — Example 2 refinement evidence formatted as a table (instead of a figure).
-- `revision_2025/sw_table_D/` — Example 2 size results, with multiple variants to highlight finite-sample numerator bias.
-- `revision_2025/reifnement_num_Ex/` — Example 2 refinement/appendix figures (includes the density overlay plots).
-
-### Test implementations (two main python files)
-
-The Monte Carlo notebooks call into two modules. All procedures take the same core likelihood objects in the same order:  
-`(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2, ...)`  
-and return `0` (no selection), `1` (select model 1), or `2` (select model 2).
-
-#### `vuong_test_base.py` (classical tests + Shi benchmark + bias-correction helpers)
-
-- **Classical Vuong-style test (“Normal”)**: Studentizes the (optionally bias-corrected) log-likelihood difference and uses fixed normal critical values.  
-  `regular_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2, alpha=.05, c=0, refinement_test=False, biascorrect=False, print_stuff=True)`
-
-- **Two-step benchmark**: Two-stage classical procedure: a simulated stage-1 cutoff (via `compute_stage1`) followed by the usual normal-critical-values decision rule.  
-  `two_step_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2, alpha=.05, biascorrect=False)`
-
-- **Shi (2015) benchmark** ([Shi (2015)](https://onlinelibrary.wiley.com/doi/abs/10.3982/QE382)): Non-degenerate modified Vuong procedure with simulation-based calibration and an optional adaptive tuning step.  
-  `ndVuong(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2, alpha=.05, nsims=1000, adapt_c=True)`
-
-- **Bias-correction helpers (Example 2)**: Score/Hessian-based utilities used to construct the trace/eigenvalue-style adjustment (e.g. `compute_eigen2(...)`). These are activated through `biascorrect=True` in the tests above.
-
-#### `vuongtests11.py` (S–W regularization + bootstrap calibration)
-
-This file focuses on the Schennach–Wilhelm-style regularized statistic and bootstrap calibration:
-
-- **S–W regularized test (fixed normal critical values)** ([Schennach and Wilhelm (2017)](https://www.tandfonline.com/doi/full/10.1080/01621459.2016.1224716)): Stabilizes the statistic using split-sample regularization controlled by `epsilon`, targeting the Example 1 “random denominator” issue.  
-  `sw_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2, epsilon=.5, alpha=.05, biascorrect=False, print_stuff=False)`
-
-- **Bootstrap-calibrated S–W test**: Uses bootstrap critical values for the S–W statistic. Set `pairwise=False` for the naive i.i.d. bootstrap and `pairwise=True` for the pairwise bootstrap that preserves the even/odd split structure (the main bootstrap method studied here).  
-  `sw_bs_test(ll1,grad1,hess1,params1,ll2,grad2,hess2,params2, alpha=.05, trials=500, epsilon=0.5, biascorrect=False, seed=None, print_stuff=False, pairwise=False)`
-
----
-
-## Running the tests (shared inputs)
-
-All tests in the Monte Carlo notebooks are called with the same core objects:
+All tests take the same core objects, in the same order:
 
 `(ll1, grad1, hess1, params1, ll2, grad2, hess2, params2, ...)`
 
-- `ll*`: per-observation log-likelihood contributions  
-- `grad*`: per-observation score vectors  
-- `hess*`: full-sample Hessians  
-- `params*`: fitted parameters  
+- `ll*`: per-observation log-likelihood contributions, shape `(n,)`
+- `grad*`: per-observation score vectors, shape `(n, p)`
+- `hess*`: full-sample Hessian, shape `(p, p)`
+- `params*`: fitted parameters, shape `(p,)`
 
-A typical pattern (for subclasses of [`GenericLikelihoodModel`](https://www.statsmodels.org/dev/dev/generated/statsmodels.base.model.GenericLikelihoodModel.html)):
+Example:
 
 ```python
-model1 = your_model(y, X)
-fit1 = model1.fit()
+from vuong_test_base import regular_test, ndVuong
+from vuongtests11 import sw_test, sw_bs_test
 
-ll1     = model1.loglikeobs(fit1.params)   # (n,)
-grad1   = model1.score_obs(fit1.params)    # (n, p)
-hess1   = model1.hessian(fit1.params)      # (p, p)
+# Fit model 1
+m1 = your_model_1(y, X)
+fit1 = m1.fit()
+ll1     = m1.loglikeobs(fit1.params)
+grad1   = m1.score_obs(fit1.params)
+hess1   = m1.hessian(fit1.params)
 params1 = fit1.params
+
+# Fit model 2
+m2 = your_model_2(y, X)
+fit2 = m2.fit()
+ll2     = m2.loglikeobs(fit2.params)
+grad2   = m2.score_obs(fit2.params)
+hess2   = m2.hessian(fit2.params)
+params2 = fit2.params
+
+# Classical Vuong (normal critical values)
+decision = regular_test(ll1,grad1,hess1,params1, ll2,grad2,hess2,params2, alpha=.05)
+
+# Shi (2015) non-degenerate Vuong
+decision = ndVuong(ll1,grad1,hess1,params1, ll2,grad2,hess2,params2, alpha=.05, nsims=1000)
+
+# Schennach–Wilhelm (2017) regularized statistic
+decision = sw_test(ll1,grad1,hess1,params1, ll2,grad2,hess2,params2, epsilon=.5, alpha=.05)
+
+# Bootstrap-calibrated S–W test (pairwise bootstrap recommended)
+decision = sw_bs_test(ll1,grad1,hess1,params1, ll2,grad2,hess2,params2,
+                      trials=500, epsilon=.5, alpha=.05, pairwise=True, seed=123)
 ```
 
-Most notebooks define a helper (often named `setup_test(...)` / `setup_shi(...)`) that fits both models and returns these inputs for model 1 and model 2 in the expected order.
+Return value convention:
+- `0`: no selection
+- `1`: select model 1
+- `2`: select model 2
 
 ---
 
-## Tuning parameters and bias correction (what matters for the Monte Carlo results)
+## What’s implemented
 
-### Bias correction (`biascorrect`)
-`biascorrect` appears in both the classical code path and the S–W/bootstrap code path. It toggles whether the numerator uses a trace/eigenvalue-style correction term computed from gradients/Hessians.
+### `vuong_test_base.py` (classical tests + Shi benchmark + bias-correction helpers)
+- `regular_test(...)` — classical Vuong-style test (fixed normal critical values), optional bias correction  
+- `two_step_test(...)` — two-stage benchmark (simulated stage-1 cutoff + normal decision rule)  
+- `ndVuong(...)` — Shi (2015) non-degenerate modified Vuong procedure (simulation-calibrated)  
+- Bias-correction utilities used for trace/eigenvalue-style adjustments (relevant for misspecification-induced numerator bias)
 
-Practical guidance for the two Monte Carlo designs:
-- **Example 2** is where `biascorrect=True` matters most (it targets numerator bias under misspecification).
-- **Example 1** is where calibration choices matter most (normal vs bootstrap critical values; naive vs pairwise bootstrap).
-
-### S–W tuning parameter (`epsilon`)
-The S–W regularized statistic depends on `epsilon`, which controls how strongly the split-sample regularization enters the statistic. This is central in Example 1 (random denominator).
-
-### “Optimal epsilon” (experimental)
-`vuongtests11.py` contains experimental code to choose `epsilon` automatically (a data-driven tuning rule; see `compute_optimal_epsilon(...)`). Some notebooks use this as a sensitivity check/exploratory extension to see how performance changes with the degree of regularization.
+### `vuongtests11.py` (S–W regularization + bootstrap calibration)
+- `sw_test(...)` — Schennach–Wilhelm (2017) split-sample regularized statistic (fixed normal critical values)  
+- `sw_bs_test(...)` — bootstrap-calibrated S–W test  
+  - `pairwise=False`: naive i.i.d. bootstrap  
+  - `pairwise=True`: **pairwise bootstrap** preserving the even/odd split-sample structure
 
 ---
 
-## Notes on versions / branches (and older applications)
+## Monte Carlo designs + replication notebooks (`revision_2025/`)
 
-- The **current 2025 revision workflow** is centered on `vuong_test_base.py`, `vuongtests11.py`, and the notebooks under `revision_2025/`.
-- Older `vuong_tests*` / `vuong_plots*` files are retained mainly for backward compatibility with older experiments and typically live on the **development** branch as part of the project’s iteration history.
+The replication workflow is organized as **Jupyter notebooks (`.ipynb`)** under `revision_2025/`. The notebooks cover two standard simulation designs used to stress-test Vuong-style procedures in finite samples:
 
-Note: I also link to an older repo with empirical applications from earlier versions of the project:  
-https://github.com/ericschulman/testing_empirical_ex  
-That repo is **out of date** relative to this one and should be viewed mainly as an archive of older applications, not as the current implementation.
+### Example 1: random denominator (non-normal finite-sample tails)
+Following the simulation frameworks in [Shi (2015)](https://onlinelibrary.wiley.com/doi/abs/10.3982/QE382) and [Schennach and Wilhelm (2017)](https://www.tandfonline.com/doi/full/10.1080/01621459.2016.1224716), this design makes the variance of the per-observation log-likelihood difference occasionally very small. As a result, the usual studentized statistic can be skewed/heavy-tailed in finite samples, and fixed normal critical values can be badly miscalibrated (often extremely conservative).  
+**Used for:** size tables, power curves, and refinement diagnostics (sampling vs bootstrap vs normal).
+
+Notebooks:
+- `revision_2025/sw_table1.ipynb` — Example 1 size results (null rejection frequencies)  
+- `revision_2025/sw_table_abc.ipynb` — Example 1 results focused mostly on power  
+- `revision_2025/refinement_denom_ex.ipynb` — Example 1 refinement/appendix figures (distribution-shape diagnostics; density overlays / tail behavior)
+
+### Example 2: numerator bias (finite-sample bias under misspecification)
+This design emphasizes finite-sample bias in the plug-in log-likelihood difference under misspecification (a Takeuchi-style phenomenon emphasized in [Shi (2015)](https://onlinelibrary.wiley.com/doi/abs/10.3982/QE382)). The bias can be especially visible with many weak regressors, motivating an **O(1/n)**-style trace/eigenvalue correction.  
+**Used for:** size curves/tables under the null (often highlighting small/moderate n) and refinement diagnostics.
+
+Notebooks:
+- `revision_2025/sw_Table1_refinement_ex.ipynb` — Example 2 refinement evidence formatted as a table  
+- `revision_2025/sw_table_d.ipynb` — Example 2 size results (multiple variants highlighting numerator bias)  
+- `revision_2025/refinement_num_ex.ipynb` — Example 2 refinement/appendix figures (includes density overlays)
+
+---
+
+## Tuning and options (what matters in practice)
+
+- `biascorrect=True`: applies a score/Hessian-based correction to the numerator (most relevant in Example 2 settings)
+- `epsilon`: regularization strength in the S–W statistic (central in Example 1 / random-denominator settings)
+- Bootstrap settings:
+  - `trials`: bootstrap replications
+  - `pairwise=True` recommended for S–W bootstrap calibration
+
+---
+
+## References
+
+- Vuong (1989): https://www.jstor.org/stable/1912557  
+- Shi (2015): https://onlinelibrary.wiley.com/doi/abs/10.3982/QE382  
+- Schennach and Wilhelm (2017): https://www.tandfonline.com/doi/full/10.1080/01621459.2016.1224716  
+
+Older (archived/out-of-date) repo with empirical applications from earlier versions of the project:  
+https://github.com/ericschulman/testing_empirical_ex
+
+---
