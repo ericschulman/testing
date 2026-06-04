@@ -88,7 +88,7 @@ def _trace_HinvV(H, V):
 
 def compute_optimal_epsilon(ll1, grad1, hess1, params1,
                  ll2, grad2, hess2, params2, alpha=0.05, ridge=1e-8,
-                            min_epsilon=1e-6, max_epsilon=1.0):
+                            min_epsilon=1e-6, max_epsilon=0.5):
     nobs = ll1.shape[0]
     idx_even = np.arange(0, nobs, 2)
     idx_odd  = np.arange(1, nobs, 2)
