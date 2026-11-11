@@ -230,8 +230,7 @@ def bootstrap_distr(
         )
 
         stat_dist[i] = (
-            (llr_reg_s - bootstrap_center
-             + (bias_correction if one_step_update is not None else 0.0))
+            (llr_reg_s - bootstrap_center)
             / (omega_reg_s * np.sqrt(nobs_in_s))
         )
 
