@@ -140,35 +140,34 @@ def compute_optimal_epsilon(ll1, grad1, hess1, params1,
 
 ############################################################################
 def normal_one_step_factory(args):
-    """Prepare one-step likelihood updates for the two example normal models.
+    """One-step quadratic updates using the supplied total Hessians.
 
-    Their per-observation parameter Hessians are -I. The quadratic likelihood
-    update is exact apart from numerical derivative error in setup_shi.
-    For other models, supply a model-specific factory with the same API.
+    Retain the name for existing notebooks. Use the average log-likelihood
+    Hessian for each observation: exact for constant-Hessian quadratic
+    likelihoods, an approximation otherwise. This alone does not establish
+    bootstrap refinement.
     """
     n = len(args[0])
 
     def prepare(ll, grad, hess):
         scores = np.asarray(grad).reshape(n, -1)
-        H = np.asarray(hess) / n  # Hessian of log likelihood, not information
-        if not np.allclose(H, -np.eye(scores.shape[1]), rtol=5e-3, atol=5e-3):
-            raise ValueError("normal_one_step_factory requires the example's -I Hessian")
-        # Move the matrix solve OUTSIDE all bootstrap loops.
+        H = np.asarray(hess) / n
+        # Solve once per original dataset, outside bootstrap loops.
         directions = -np.linalg.solve(H, scores.T).T
-        return np.asarray(ll), scores, directions
+        return np.asarray(ll), scores, directions, H
 
-    a, sf, df = prepare(args[0], args[1], args[2])
-    b, sg, dg = prepare(args[4], args[5], args[6])
+    a, sf, df, Hf = prepare(args[0], args[1], args[2])
+    b, sg, dg, Hg = prepare(args[4], args[5], args[6])
 
     def update(sample):
-        # theta_step = theta_hat + delta; only updated likelihoods are needed.
         delta_f = df[sample].mean(axis=0)
         delta_g = dg[sample].mean(axis=0)
-        a_s = a[sample] + sf[sample] @ delta_f - 0.5 * (delta_f @ delta_f)
-        b_s = b[sample] + sg[sample] @ delta_g - 0.5 * (delta_g @ delta_g)
+        a_s = a[sample] + sf[sample] @ delta_f + 0.5 * (delta_f @ Hf @ delta_f)
+        b_s = b[sample] + sg[sample] @ delta_g + 0.5 * (delta_g @ Hg @ delta_g)
         return a_s, b_s
 
     return update
+
 
 
 def bootstrap_distr(
