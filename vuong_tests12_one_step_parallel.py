@@ -76,65 +76,119 @@ def _estimate_HV(grad, hess_total, ridge=1e-8):
     H_hat = -E[∂² log f]  (per-observation average curvature)
     V_hat = E[s s′]       (uncentered score second moment)
     """
-    n = grad.shape[0]
-    H_hat = -hess_total / n
-    S = grad - grad.mean() # i think its supposed to be centered....
-    V_hat = (S.T @ S) / n
+    scores = np.asarray(grad).reshape(len(grad), -1)
+    n = scores.shape[0]
+
+    H_hat = -np.asarray(hess_total) / n
+    V_hat = scores.T @ scores / n
+
     return H_hat, V_hat
 
 def _trace_HinvV(H, V):
     return float(np.trace(np.linalg.solve(H, V)))
 
 
-def compute_optimal_epsilon(ll1, grad1, hess1, params1,
-                 ll2, grad2, hess2, params2, alpha=0.05, ridge=1e-8,
-                            min_epsilon=1e-6, max_epsilon=0.5):
+def compute_optimal_epsilon(
+    ll1, grad1, hess1, params1,
+    ll2, grad2, hess2, params2,
+    alpha=0.05, ridge=1e-8,
+    max_epsilon=0.50, debug=False, diagnostics=None,
+    reference_n=500, epsilon_at_reference=0.15
+):
     nobs = ll1.shape[0]
-    idx_even = np.arange(0, nobs, 2)
-    idx_odd  = np.arange(1, nobs, 2)
+
+    if nobs <= np.e:
+        raise ValueError("nobs must be greater than e")
+    if reference_n <= np.e or not np.isfinite(reference_n):
+        raise ValueError("reference_n must be finite and greater than e")
+    if epsilon_at_reference <= 0 or not np.isfinite(epsilon_at_reference):
+        raise ValueError("epsilon_at_reference must be positive and finite")
 
     # Variances
-    sigma2_hat  = max(float(np.var(ll1 - ll2, ddof=0)),.5) #NOTE cheating a little bit with epsilon... keep it big enough
-    sigmaA2_hat = float(np.var(ll1[idx_even], ddof=0)) if idx_even.size > 1 else 0.0
-    sigmaB2_hat = float(np.var(ll2[idx_odd],  ddof=0)) if idx_odd.size  > 1 else 0.0
-    sigma_hat   = np.sqrt(max(sigma2_hat, 1e-12))
+    sigma2_hat = max(float(np.var(ll1 - ll2)), 0.0001)
+    sigmaA2_hat = float(np.var(ll1))
+    sigmaB2_hat = float(np.var(ll2))
+    sigma_hat = np.sqrt(sigma2_hat)
 
     # Estimate (H, V) for each model
     H1_hat, V1_hat = _estimate_HV(grad1, hess1, ridge=ridge)
     H2_hat, V2_hat = _estimate_HV(grad2, hess2, ridge=ridge)
+
     try:
-        tr1 = abs(_trace_HinvV(H1_hat, V1_hat))
-        tr2 = abs(_trace_HinvV(H2_hat, V2_hat))
-        tr_max = max(tr1, tr2)
+        tr_max = max(
+            abs(_trace_HinvV(H1_hat, V1_hat)),
+            abs(_trace_HinvV(H2_hat, V2_hat))
+        )
     except np.linalg.LinAlgError:
         tr_max = 1.0
 
-    # Paper constants
-    z = norm.ppf(1 - alpha/2.0)
-    phi_z = norm.pdf(z)
-    delta_star_hat = (sigma_hat / 2.0) * (z - np.sqrt(4.0 + z**2))
-    phi_arg = z - (delta_star_hat / max(sigma_hat, 1e-12))
-    phi_term = norm.pdf(phi_arg)
+    # SW constants
+    z = norm.ppf(alpha / 2)
+    delta_star_hat = (
+        sigma_hat / 2 * (z - np.sqrt(4 + z**2))
+    )
 
-    denom_PL = 4.0 * (sigma_hat**3 + 1e-12)
-    CPL_num = delta_star_hat * (sigma_hat**2 - 2.0 * (sigmaA2_hat + sigmaB2_hat))
-    C_PL_hat = phi_term * CPL_num / denom_PL
+    C_PL_hat = (
+        norm.pdf(z - delta_star_hat / sigma_hat)
+        * delta_star_hat
+        * (sigma2_hat - 2 * (sigmaA2_hat + sigmaB2_hat))
+        / (4 * sigma_hat**3)
+    )
 
-    denom_SD = np.sqrt(max((sigmaA2_hat + sigmaB2_hat)/2.0, 1e-12))
-    C_SD_hat = 2.0 * phi_z * tr_max / denom_SD
+    C_SD_hat = (
+        2 * norm.pdf(z) * tr_max
+        / np.sqrt(max((sigmaA2_hat + sigmaB2_hat) / 2, 1e-12))
+    )
 
-    lnln_term = max(np.log(np.log(max(nobs, 3))), 1e-6)
-    fallback = nobs**(-1/6) * (lnln_term**(1/3))
+    # SW sample-size rate
+    rate = nobs**(-1/6) * np.log(np.log(nobs))**(1/3)
 
-    valid = (np.isfinite(C_PL_hat) and np.isfinite(C_SD_hat) and
-             C_PL_hat > 0 and C_SD_hat > 0)
+    valid = (
+        np.isfinite(C_PL_hat)
+        and np.isfinite(C_SD_hat)
+        and C_PL_hat > 0
+        and C_SD_hat > 0
+    )
 
-    if valid:
-        eps_hat = ((C_SD_hat/C_PL_hat)**(1/3)) * (nobs**(-1/6)) * (lnln_term**(1/3))
-    else:
-        eps_hat = fallback
+    if not valid:
+        raise ValueError(f"Invalid SW constants: C_SD={C_SD_hat}, C_PL={C_PL_hat}")
 
-    return float(np.clip(eps_hat, min_epsilon, max_epsilon))
+    eps_hat = (C_SD_hat / C_PL_hat)**(1/3) * rate
+
+    # User-configurable shrinking floor; cap via max_epsilon.
+    reference_rate = (
+        reference_n**(-1/6)
+        * np.log(np.log(reference_n))**(1/3)
+    )
+    epsilon_floor = epsilon_at_reference * rate / reference_rate
+    if max_epsilon < epsilon_floor:
+        raise ValueError("max_epsilon must be at least the sample-size-adjusted epsilon floor")
+
+    epsilon_final = float(
+        np.clip(eps_hat, epsilon_floor, max_epsilon)
+    )
+
+    if debug or diagnostics is not None:
+        diagnostic = {
+            "sigma2": sigma2_hat,
+            "sigmaA2": sigmaA2_hat,
+            "sigmaB2": sigmaB2_hat,
+            "tr_max": tr_max,
+            "C_SD": C_SD_hat,
+            "C_PL": C_PL_hat,
+            "epsilon_raw": eps_hat,
+            "epsilon_floor": epsilon_floor,
+            "floor_binding": eps_hat < epsilon_floor,
+            "epsilon_final": epsilon_final,
+            "hit_cap": eps_hat > max_epsilon,
+        }
+
+        if diagnostics is not None:
+            diagnostics.append(diagnostic)
+        if debug:
+            print(diagnostic)
+
+    return epsilon_final
 
 
 
@@ -229,7 +283,8 @@ def bootstrap_distr(
         )
 
         stat_dist[i] = (
-            (llr_reg_s - bootstrap_center)
+            (llr_reg_s - bootstrap_center
+             + (bias_correction if one_step_update is not None else 0.0))
             / (omega_reg_s * np.sqrt(nobs_in_s))
         )
 
@@ -362,7 +417,7 @@ def _monte_carlo_serial(
     skip_boot=False, skip_shi=False, trials=500,
     biascorrect=False, alpha=.05, adapt_c=True,
     print_stuff=True, epsilon=.5, data_tuned_epsilon=False,
-    one_step_factory=None
+    one_step_factory=None, epsilon_diagnostics=None, tuned_biascorrect=False
 ):
     reg = np.zeros(3, dtype=int)
     twostep = np.zeros(3, dtype=int)
@@ -428,15 +483,30 @@ def _monte_carlo_serial(
 
         if data_tuned_epsilon:
             epsilon_opt = compute_optimal_epsilon(
-                *args, alpha=alpha
+                *args, alpha=alpha, diagnostics=epsilon_diagnostics
             )
 
-            sw_opt_index = sw_test(
-                *args, epsilon=epsilon_opt,
-                alpha=alpha, biascorrect=False,
-                print_stuff=False
+            # Compute the tuned statistic exactly once, including optional bias correction.
+            if tuned_biascorrect:
+                numerator, omega_reg, V, _ = sw_test_stat(
+                    *args, epsilon=epsilon_opt, compute_v=True
+                )
+                numerator += V.sum() / 2.0
+            else:
+                numerator, omega_reg, _ = sw_test_stat(
+                    *args, epsilon=epsilon_opt, compute_v=False
+                )
+            tuned_t = float(numerator / (omega_reg * np.sqrt(nobs)))
+            sw_opt_index = int(tuned_t >= norm.ppf(1 - alpha / 2)) + 2 * int(
+                tuned_t <= norm.ppf(alpha / 2)
             )
             sw_test_opt[sw_opt_index] += 1
+
+            if epsilon_diagnostics is not None:
+                epsilon_diagnostics[-1].update({
+                    "tuned_decision": sw_opt_index,
+                    "tuned_t": tuned_t,
+                })
 
             if not skip_boot:
                 # Correctly centered singleton, tuned epsilon.
@@ -481,10 +551,12 @@ def _monte_carlo_one_replication(seed, gen_data, setup_shi, options):
         sample_size.append(n)
         return y, x, n
 
+    diagnostics = []
     result = _monte_carlo_serial(
-        1, recorded_gen_data, setup_shi, print_stuff=False, **options
+        1, recorded_gen_data, setup_shi, print_stuff=False,
+        epsilon_diagnostics=diagnostics, **options
     )
-    return result, sample_size[0]
+    return result, sample_size[0], diagnostics
 
 
 def _combine_monte_carlo_replications(replications):
@@ -503,12 +575,35 @@ def _combine_monte_carlo_replications(replications):
     return probabilities + (mean_llr, std_llr, mean_omega * np.sqrt(sizes[-1]))
 
 
+def print_tuned_diagnostics(diagnostics):
+    """One consistent summary for the same tuned statistic and decision."""
+    records = [d for d in diagnostics if "tuned_decision" in d]
+    if not records:
+        return
+    t = np.array([d["tuned_t"] for d in records])
+    decisions = np.array([d["tuned_decision"] for d in records])
+    sigma2 = np.array([d["sigma2"] for d in records])
+    eps = np.array([d["epsilon_final"] for d in records])
+    raw = np.array([d["epsilon_raw"] for d in records])
+    floor_rate = np.mean([d["floor_binding"] for d in records])
+    quartiles = np.array_split(np.argsort(sigma2, kind="stable"), 4)
+    q_rates = "/".join(f"{np.mean(decisions[q] != 0):.1%}" for q in quartiles)
+    print(
+        f"Tuned SW: reject={np.mean(decisions != 0):.1%} "
+        f"(upper={np.mean(decisions == 1):.1%}, lower={np.mean(decisions == 2):.1%}); "
+        f"t={t.mean():+.2f}±{t.std(ddof=1):.2f}; "
+        f"eps={np.median(eps):.3f} (raw={np.median(raw):.3f}, "
+        f"floor={floor_rate:.0%}); "
+        f"low-to-high sigma2 quartiles={q_rates}"
+    )
+
+
 def monte_carlo(
     total, gen_data, setup_shi,
     skip_boot=False, skip_shi=False, trials=500,
     biascorrect=False, alpha=.05, adapt_c=True,
     print_stuff=True, epsilon=.5, data_tuned_epsilon=False,
-    one_step_factory=None, n_jobs=1, seed=None
+    one_step_factory=None, n_jobs=1, seed=None, tuned_biascorrect=False
 ):
     """Original one-step Monte Carlo with optional process parallelism.
 
@@ -530,12 +625,17 @@ def monte_carlo(
         skip_boot=skip_boot, skip_shi=skip_shi, trials=trials,
         biascorrect=biascorrect, alpha=alpha, adapt_c=adapt_c,
         epsilon=epsilon, data_tuned_epsilon=data_tuned_epsilon,
-        one_step_factory=one_step_factory
+        one_step_factory=one_step_factory, tuned_biascorrect=tuned_biascorrect
     )
     if n_jobs == 1 and seed is None:
-        return _monte_carlo_serial(
-            total, gen_data, setup_shi, print_stuff=print_stuff, **options
+        diagnostics = [] if data_tuned_epsilon else None
+        result = _monte_carlo_serial(
+            total, gen_data, setup_shi, print_stuff=print_stuff,
+            epsilon_diagnostics=diagnostics, **options
         )
+        if print_stuff and diagnostics:
+            print_tuned_diagnostics(diagnostics)
+        return result
 
     # SeedSequence avoids inheriting the same NumPy stream in every worker.
     seeds = [child.generate_state(1)[0]
@@ -555,12 +655,16 @@ def monte_carlo(
         with parallel_backend("loky", inner_max_num_threads=1):
             replications = Parallel(
                 n_jobs=workers, batch_size="auto", pre_dispatch="2*n_jobs",
-                verbose=5 if print_stuff else 0
+                verbose=0
             )(
                 delayed(_monte_carlo_one_replication)(
                     s, gen_data, setup_shi, options
                 ) for s in seeds
             )
+    if print_stuff and data_tuned_epsilon:
+        diagnostics = [d for replication in replications for d in replication[2]]
+        if diagnostics:
+            print_tuned_diagnostics(diagnostics)
     return _combine_monte_carlo_replications(replications)
 
 
