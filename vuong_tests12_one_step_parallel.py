@@ -93,7 +93,7 @@ def compute_optimal_epsilon(
     ll2, grad2, hess2, params2,
     alpha=0.05, ridge=1e-8,
     max_epsilon=0.50, debug=False, diagnostics=None,
-    reference_n=500, epsilon_at_reference=0.15
+    reference_n=500, epsilon_at_reference=0.3
 ):
     nobs = ll1.shape[0]
 
